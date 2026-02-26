@@ -10,7 +10,7 @@ const corsHeaders = {
 const CONFIRMATION_KEYWORDS = [
   'ok', 'sim', 'confirmo', 'receber', 'quero', 'aceito', '1', 'yes', 'si',
   'pode', 'manda', 'enviar', 'blz', 'beleza', 'tá', 'ta', 'certo', 'positivo',
-  'receber relatorio', 'receber relatório'
+  'receber relatorio', 'receber relatório', 'relatorio', 'relatório'
 ];
 
 // Keywords de recusa
@@ -66,7 +66,6 @@ const extractMetaMessage = (body: any): { from: string; text: string } | null =>
 // Extract from simplified/alternative format
 const extractSimpleMessage = (body: any): { from: string; text: string } | null => {
   try {
-    // Format: { from: "5517...", text: "sim" } or { phone: "5517...", message: "sim" }
     const from = body?.from || body?.phone || body?.sender || body?.numero || body?.remoteJid;
     const text = body?.text || body?.message || body?.body || body?.mensagem || body?.msg;
     
@@ -74,7 +73,6 @@ const extractSimpleMessage = (body: any): { from: string; text: string } | null 
       return { from: String(from), text: String(text) };
     }
 
-    // Try nested data
     const data = body?.data || body?.message_data;
     if (data) {
       const nestedFrom = data?.from || data?.phone || data?.sender;
@@ -87,6 +85,32 @@ const extractSimpleMessage = (body: any): { from: string; text: string } | null 
     return null;
   } catch {
     return null;
+  }
+};
+
+// Generate and send report on-demand by calling daily-summary
+const generateAndSendReportOnDemand = async (senderPhone: string, supabase: any): Promise<boolean> => {
+  try {
+    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+    const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY')!;
+
+    console.log(`Generating on-demand report for phone ${senderPhone}`);
+
+    const response = await fetch(`${supabaseUrl}/functions/v1/daily-summary`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${supabaseAnonKey}`,
+      },
+      body: JSON.stringify({ testPhone: senderPhone, directSend: true }),
+    });
+
+    const result = await response.text();
+    console.log(`On-demand daily-summary response: ${response.status}`, result);
+    return response.ok;
+  } catch (error) {
+    console.error('Failed to generate on-demand report:', error);
+    return false;
   }
 };
 
@@ -108,7 +132,6 @@ serve(async (req) => {
     const verifyToken = Deno.env.get('UMCLIQUE_VERIFY_TOKEN');
 
     if (mode === 'subscribe') {
-      // If we have a verify token configured, validate it
       if (verifyToken && token !== verifyToken) {
         console.error('Verify token mismatch');
         return new Response('Forbidden', { status: 403 });
@@ -162,6 +185,30 @@ serve(async (req) => {
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
+    // === DECLINE FLOW ===
+    if (isDecline) {
+      console.log('Client DECLINED the report');
+      
+      // Try to update any pending message to declined
+      const phoneVariants = [senderPhone, senderPhone.replace(/^55/, ''), `55${senderPhone}`];
+      await supabase
+        .from('pending_messages')
+        .update({ status: 'declined', confirmed_at: new Date().toISOString() })
+        .in('client_phone', phoneVariants)
+        .eq('status', 'pending');
+
+      return new Response(JSON.stringify({
+        success: true,
+        action: 'declined',
+        message: 'Client declined the report',
+      }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    // === CONFIRM FLOW ===
+    console.log('Client CONFIRMED the report');
+
     // Search for pending message with phone variants
     const phoneVariants = [
       senderPhone,
@@ -184,173 +231,154 @@ serve(async (req) => {
       throw searchError;
     }
 
-    if (!pendingMessages || pendingMessages.length === 0) {
-      console.log('No pending messages found for phone:', senderPhone);
-      return new Response(JSON.stringify({ ignored: true, reason: 'no_pending_message' }), {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    // If we have a pending message with content, send it directly
+    if (pendingMessages && pendingMessages.length > 0) {
+      const pending = pendingMessages[0];
+      console.log(`Found pending message: ${pending.id} for client: ${pending.client_name}`);
+
+      // Send report via Um Clique Digital API
+      const umcliqueApiKey = Deno.env.get('UMCLIQUE_API_KEY');
+      if (!umcliqueApiKey) {
+        console.error('UMCLIQUE_API_KEY not configured');
+        throw new Error('UMCLIQUE_API_KEY not configured');
+      }
+
+      let apiPhone = pending.client_phone.replace(/\D/g, '');
+      if (!apiPhone.startsWith('55')) apiPhone = '55' + apiPhone;
+
+      const apiUrl = 'https://cslsnijdeayzfpmwjtmw.supabase.co/functions/v1/public-send-message';
+      const apiHeaders = {
+        'Content-Type': 'application/json',
+        'X-API-Key': umcliqueApiKey,
+      };
+
+      // Step 1: Send template to open conversation window
+      console.log('Step 1: Sending template to open conversation window for', apiPhone);
+      const templateResponse = await fetch(apiUrl, {
+        method: 'POST',
+        headers: apiHeaders,
+        body: JSON.stringify({
+          channel_id: '1060061327180048',
+          to: apiPhone,
+          type: 'template',
+          template_name: 'relatorio',
+          template_language: 'pt_BR',
+          template_variables: [
+            { type: 'text', text: pending.client_name }
+          ],
+        }),
       });
-    }
 
-    const pending = pendingMessages[0];
-    console.log(`Found pending message: ${pending.id} for client: ${pending.client_name}`);
+      const templateResult = await templateResponse.text();
+      console.log('Template response:', templateResponse.status, templateResult);
 
-    // Check if the owner has relatorio_ativo enabled
-    const { data: ownerProfile, error: profileError } = await supabase
-      .from('profiles')
-      .select('relatorio_ativo, full_name')
-      .eq('id', pending.user_id)
-      .maybeSingle();
+      if (!templateResponse.ok) {
+        console.error('Error sending template:', templateResult);
+        await supabase.from('pending_messages').update({ status: 'failed' }).eq('id', pending.id);
+        throw new Error(`Template send error: ${templateResponse.status} - ${templateResult}`);
+      }
 
-    if (profileError) {
-      console.error('Error checking owner profile:', profileError);
-    }
+      // Step 2: Wait for conversation window
+      await new Promise(resolve => setTimeout(resolve, 2000));
 
-    if (!ownerProfile?.relatorio_ativo) {
-      console.log('Owner does not have relatorio_ativo enabled, ignoring');
-      return new Response(JSON.stringify({ ignored: true, reason: 'relatorio_not_active' }), {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      // Step 3: Send actual report content
+      console.log('Step 3: Sending report text content to', apiPhone);
+      const textResponse = await fetch(apiUrl, {
+        method: 'POST',
+        headers: apiHeaders,
+        body: JSON.stringify({
+          channel_id: '1060061327180048',
+          to: apiPhone,
+          type: 'text',
+          content: pending.message_content,
+        }),
       });
-    }
 
-    // === DECLINE FLOW ===
-    if (isDecline) {
-      console.log('Client DECLINED the report');
-      
-      const { error: updateError } = await supabase
+      const textResult = await textResponse.text();
+      console.log('Text response:', textResponse.status, textResult);
+
+      if (!textResponse.ok) {
+        console.error('Error sending report text:', textResult);
+        await supabase.from('pending_messages').update({ status: 'failed' }).eq('id', pending.id);
+        throw new Error(`Text send error: ${textResponse.status} - ${textResult}`);
+      }
+
+      // Update to confirmed + sent
+      await supabase
         .from('pending_messages')
         .update({
-          status: 'declined',
+          status: 'confirmed',
           confirmed_at: new Date().toISOString(),
+          sent_at: new Date().toISOString(),
         })
         .eq('id', pending.id);
 
-      if (updateError) {
-        console.error('Error updating to declined:', updateError);
-      }
+      // Register in whatsapp_messages
+      await supabase.from('whatsapp_messages').insert({
+        user_id: pending.user_id,
+        loan_id: pending.contract_id,
+        contract_type: pending.contract_type || 'loan',
+        message_type: pending.message_type,
+        client_phone: pending.client_phone,
+        client_name: pending.client_name,
+      });
+
+      console.log('Successfully sent confirmed report to:', pending.client_name);
 
       return new Response(JSON.stringify({
         success: true,
-        action: 'declined',
+        action: 'confirmed',
         clientName: pending.client_name,
-        message: 'Client declined the report',
+        message: 'Report sent successfully via Um Clique Digital',
       }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
 
-    // === CONFIRM FLOW ===
-    console.log('Client CONFIRMED the report, sending via Um Clique Digital API...');
+    // === NO PENDING MESSAGE: Generate report on-demand ===
+    console.log('No pending message found, generating report on-demand for:', senderPhone);
 
-    // Send report via Um Clique Digital API (2-step: template + text)
-    const umcliqueApiKey = Deno.env.get('UMCLIQUE_API_KEY');
-    if (!umcliqueApiKey) {
-      console.error('UMCLIQUE_API_KEY not configured');
-      throw new Error('UMCLIQUE_API_KEY not configured');
+    // Find which user this phone belongs to
+    const last9 = senderPhone.slice(-9);
+    const { data: matchingProfile } = await supabase
+      .from('profiles')
+      .select('id, phone, full_name, relatorio_ativo')
+      .or(`phone.ilike.%${last9}%`)
+      .eq('is_active', true)
+      .limit(1);
+
+    if (!matchingProfile || matchingProfile.length === 0) {
+      console.log('No user profile found for phone:', senderPhone);
+      return new Response(JSON.stringify({ ignored: true, reason: 'no_user_found' }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
     }
 
-    // Format phone for the API (needs country code)
-    let apiPhone = pending.client_phone.replace(/\D/g, '');
-    if (!apiPhone.startsWith('55')) {
-      apiPhone = '55' + apiPhone;
+    const userProfile = matchingProfile[0];
+    console.log(`Found user ${userProfile.id} (${userProfile.full_name}) for phone ${senderPhone}`);
+
+    // Generate and send report on-demand via daily-summary
+    const sent = await generateAndSendReportOnDemand(senderPhone, supabase);
+
+    if (sent) {
+      return new Response(JSON.stringify({
+        success: true,
+        action: 'on_demand_report',
+        userName: userProfile.full_name,
+        message: 'Report generated and sent on-demand',
+      }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    } else {
+      return new Response(JSON.stringify({
+        success: false,
+        action: 'on_demand_report_failed',
+        message: 'Failed to generate on-demand report',
+      }), {
+        status: 500,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
     }
-
-    const apiUrl = 'https://cslsnijdeayzfpmwjtmw.supabase.co/functions/v1/public-send-message';
-    const apiHeaders = {
-      'Content-Type': 'application/json',
-      'X-API-Key': umcliqueApiKey,
-    };
-
-    // Step 1: Send template to open conversation window
-    console.log('Step 1: Sending template to open conversation window for', apiPhone);
-    const templateResponse = await fetch(apiUrl, {
-      method: 'POST',
-      headers: apiHeaders,
-      body: JSON.stringify({
-        channel_id: '1060061327180048',
-        to: apiPhone,
-        type: 'template',
-        template_name: 'relatorio',
-        template_language: 'pt_BR',
-        template_variables: [
-          { type: 'text', text: pending.client_name }
-        ],
-      }),
-    });
-
-    const templateResult = await templateResponse.text();
-    console.log('Template response:', templateResponse.status, templateResult);
-
-    if (!templateResponse.ok) {
-      console.error('Error sending template:', templateResult);
-      await supabase
-        .from('pending_messages')
-        .update({ status: 'failed' })
-        .eq('id', pending.id);
-      throw new Error(`Template send error: ${templateResponse.status} - ${templateResult}`);
-    }
-
-    // Step 2: Wait for conversation window to open
-    await new Promise(resolve => setTimeout(resolve, 2000));
-
-    // Step 3: Send actual report content as text message
-    console.log('Step 3: Sending report text content to', apiPhone);
-    const textResponse = await fetch(apiUrl, {
-      method: 'POST',
-      headers: apiHeaders,
-      body: JSON.stringify({
-        channel_id: '1060061327180048',
-        to: apiPhone,
-        type: 'text',
-        content: pending.message_content,
-      }),
-    });
-
-    const textResult = await textResponse.text();
-    console.log('Text response:', textResponse.status, textResult);
-
-    if (!textResponse.ok) {
-      console.error('Error sending report text:', textResult);
-      await supabase
-        .from('pending_messages')
-        .update({ status: 'failed' })
-        .eq('id', pending.id);
-      throw new Error(`Text send error: ${textResponse.status} - ${textResult}`);
-    }
-
-    // Update to confirmed + sent
-    const { error: updateError } = await supabase
-      .from('pending_messages')
-      .update({
-        status: 'confirmed',
-        confirmed_at: new Date().toISOString(),
-        sent_at: new Date().toISOString(),
-      })
-      .eq('id', pending.id);
-
-    if (updateError) {
-      console.error('Error updating pending message:', updateError);
-    }
-
-    // Register in whatsapp_messages
-    await supabase.from('whatsapp_messages').insert({
-      user_id: pending.user_id,
-      loan_id: pending.contract_id,
-      contract_type: pending.contract_type || 'loan',
-      message_type: pending.message_type,
-      client_phone: pending.client_phone,
-      client_name: pending.client_name,
-    });
-
-    console.log('Successfully sent confirmed report to:', pending.client_name);
-
-    return new Response(JSON.stringify({
-      success: true,
-      action: 'confirmed',
-      clientName: pending.client_name,
-      message: 'Report sent successfully via Um Clique Digital',
-    }), {
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-    });
 
   } catch (error: unknown) {
     console.error('Error in umclique-webhook:', error);
