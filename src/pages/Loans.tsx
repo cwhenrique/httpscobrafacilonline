@@ -5277,9 +5277,20 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
     
     // 🆕 Multa é lucro puro — não deve contar como principal pago
     if (penaltyInPayment > 0) {
-      principal_paid = Math.max(0, principal_paid - penaltyInPayment);
-      interest_paid += penaltyInPayment;
+      if (paymentData.payment_type === 'installment') {
+        // Para pagamento de parcelas, a multa JÁ foi incluída via extraAmount/getInstallmentValue
+        // Apenas ajustar principal para não incluir a multa
+        principal_paid = Math.max(0, amount - interest_paid);
+      } else {
+        // Para pagamento parcial/total, adicionar multa ao interest_paid
+        principal_paid = Math.max(0, principal_paid - penaltyInPayment);
+        interest_paid += penaltyInPayment;
+      }
     }
+
+    // Garantia de consistência: interest_paid nunca pode exceder amount
+    interest_paid = Math.min(interest_paid, amount);
+    principal_paid = Math.max(0, amount - interest_paid);
 
     // 🆕 CORREÇÃO: Capturar resultado do registerPayment e reverter notas em caso de erro
     const paymentResult = await registerPayment({
