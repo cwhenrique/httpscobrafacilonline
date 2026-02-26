@@ -11,6 +11,8 @@ import { toast } from 'sonner';
 import {
   FileCheck,
   ArrowUpRight,
+  Calendar,
+  Star,
   CheckCircle2,
   XCircle,
   DollarSign,
@@ -24,7 +26,10 @@ import {
 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 
-const CAKTO_CHECKOUT_URL = 'https://pay.cakto.com.br/3c4qf8i';
+const CHECKOUT_LINKS = {
+  monthly: 'https://pay.cakto.com.br/3c4qf8i',
+  annual: 'https://pay.cakto.com.br/us9zu34',
+};
 
 const HOUR_OPTIONS = Array.from({ length: 24 }, (_, i) => ({
   value: String(i),
@@ -151,13 +156,9 @@ export default function AutoReports() {
                 </div>
               </div>
               {!isActive && (
-                <Button
-                  onClick={() => window.open(CAKTO_CHECKOUT_URL, '_blank')}
-                  className="gap-2 bg-emerald-600 hover:bg-emerald-500 text-white"
-                >
-                  Assinar R$ 19,90/mês
-                  <ArrowUpRight className="w-4 h-4" />
-                </Button>
+                <Badge className="bg-destructive/20 text-destructive border-destructive/50">
+                  Inativo
+                </Badge>
               )}
               {isActive && (
                 <Badge className="bg-emerald-500/20 text-emerald-400 border-emerald-500/50">
@@ -203,14 +204,29 @@ export default function AutoReports() {
                 <Shield className="w-4 h-4 text-emerald-400" />
                 <span>Parceria oficial com WhatsApp — API verificada</span>
               </div>
-              <Button
-                size="lg"
-                onClick={() => window.open(CAKTO_CHECKOUT_URL, '_blank')}
-                className="gap-2 bg-emerald-600 hover:bg-emerald-500 text-white"
-              >
-                Assinar Agora — R$ 19,90/mês
-                <ArrowUpRight className="w-4 h-4" />
-              </Button>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 w-full max-w-lg mx-auto">
+                <button
+                  onClick={() => window.open(CHECKOUT_LINKS.monthly, '_blank')}
+                  className="flex flex-col items-center gap-2 p-5 rounded-xl border-2 border-border hover:border-emerald-500 bg-background/30 hover:bg-emerald-500/10 transition-all text-center"
+                >
+                  <Calendar className="w-8 h-8 text-muted-foreground" />
+                  <div className="font-semibold">Mensal</div>
+                  <div className="text-lg font-bold text-emerald-400">R$ 19,90/mês</div>
+                </button>
+
+                <button
+                  onClick={() => window.open(CHECKOUT_LINKS.annual, '_blank')}
+                  className="relative flex flex-col items-center gap-2 p-5 rounded-xl border-2 border-emerald-500 bg-emerald-500/10 hover:bg-emerald-500/20 transition-all text-center"
+                >
+                  <div className="absolute -top-2 right-3 bg-emerald-500 text-white text-xs font-bold px-2 py-0.5 rounded">
+                    MELHOR VALOR
+                  </div>
+                  <Star className="w-8 h-8 text-emerald-400" />
+                  <div className="font-semibold">Anual</div>
+                  <div className="text-lg font-bold text-emerald-400">R$ 199,00/ano</div>
+                  <div className="text-sm text-emerald-500 font-medium">Economia de R$ 39,80</div>
+                </button>
+              </div>
             </CardContent>
           </Card>
         )}
