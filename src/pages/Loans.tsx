@@ -693,7 +693,7 @@ const getFirstUnpaidInstallmentIndex = (loan: LoanForUnpaidCheck): number => {
 };
 
 export default function Loans() {
-  const { loans, loading, createLoan, registerPayment, deleteLoan, deletePayment, renegotiateLoan, updateLoan, fetchLoans, getLoanPayments, updatePaymentDate, addExtraInstallments, invalidateLoans } = useLoans();
+  const { loans, loading, createLoan, registerPayment, deleteLoan, deletePayment, renegotiateLoan, updateLoan, fetchLoans, getLoanPayments, updatePaymentDate, addExtraInstallments, invalidateLoans, reconcileOrphanedSubparcelas } = useLoans();
   const { clients, updateClient, createClient, fetchClients } = useClients();
   const { profile } = useProfile();
   const { hasPermission, isEmployee, isOwner } = useEmployeeContext();
@@ -4882,9 +4882,15 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
         return sub ? `Sub-P${sub.originalIndex + 1}` : `Sub${i}`;
       });
       const allLabels = [...regularLabels.map(String), ...subparcelaLabels];
+      // 🆕 Gerar referências explícitas para sub-parcelas no note do pagamento
+      const subparcelaRefs = subparcelaIndicesForNotes.map(i => {
+        const subIdx = Math.abs(i) - 1;
+        const sub = getAdvanceSubparcelasFromNotes(selectedLoan.notes)[subIdx];
+        return sub ? ` [SUBPARCELA_REF:${sub.originalIndex}:${sub.uniqueId}]` : '';
+      }).join('');
       installmentNote = allLabels.length === 1
-        ? `Parcela ${allLabels[0]} de ${numInstallments}`
-        : `Parcelas ${allLabels.join(', ')} de ${numInstallments}`;
+        ? `Parcela ${allLabels[0]} de ${numInstallments}${subparcelaRefs}`
+        : `Parcelas ${allLabels.join(', ')} de ${numInstallments}${subparcelaRefs}`;
       
       // Marcar parcelas regulares como pagas no tracking (com suporte a pagamento parcial)
       let remainingPayment = amount;
@@ -4965,9 +4971,9 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
         // 🆕 FIX: Usar new_due_date do usuário se disponível (adiantamento de sub-parcela)
         const newDueDate = paymentData.new_due_date || targetSubparcela.dueDate;
         updatedNotes += `[ADVANCE_SUBPARCELA:${targetSubparcela.originalIndex}:${newRemainder.toFixed(2)}:${newDueDate}:${newUniqueId}]`;
-        installmentNote = `Sub-parcela (Adiant. P${targetSubparcela.originalIndex + 1}) - Pagamento parcial. Restante: ${formatCurrency(newRemainder)}`;
+        installmentNote = `Sub-parcela (Adiant. P${targetSubparcela.originalIndex + 1}) - Pagamento parcial. Restante: ${formatCurrency(newRemainder)} [SUBPARCELA_REF:${targetSubparcela.originalIndex}:${targetSubparcela.uniqueId}]`;
       } else {
-        installmentNote = `Sub-parcela (Adiant. P${targetSubparcela.originalIndex + 1}) quitada`;
+        installmentNote = `Sub-parcela (Adiant. P${targetSubparcela.originalIndex + 1}) quitada [SUBPARCELA_REF:${targetSubparcela.originalIndex}:${targetSubparcela.uniqueId}]`;
       }
       
       // Calcular juros e principal proporcionalmente
@@ -8540,6 +8546,7 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
             <LoansTableView 
               loans={sortedLoans}
               onPayment={(loanId) => {
+                reconcileOrphanedSubparcelas(loanId);
                 setSelectedLoanId(loanId);
                 setIsPaymentDialogOpen(true);
               }}
@@ -10943,6 +10950,7 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
               <LoansTableView 
                 loans={sortedLoans}
                 onPayment={(loanId) => {
+                  reconcileOrphanedSubparcelas(loanId);
                   setSelectedLoanId(loanId);
                   setIsPaymentDialogOpen(true);
                 }}
