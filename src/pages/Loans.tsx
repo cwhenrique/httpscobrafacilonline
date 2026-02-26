@@ -3278,6 +3278,12 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
     const skipTagsStr = skipTags.length > 0 ? skipTags.join(' ') + '\n' : '';
     const details = `Valor emprestado: R$ ${principalAmount.toFixed(2)}\nParcela diária: R$ ${dailyAmount.toFixed(2)}\nTotal a receber: R$ ${totalToReceive.toFixed(2)}\nLucro: R$ ${profit.toFixed(2)}`;
     
+    // Add overdue penalty configuration if enabled
+    let overdueTag = '';
+    if (formData.overdue_penalty_enabled && formData.overdue_penalty_value) {
+      overdueTag = `[OVERDUE_CONFIG:${formData.overdue_penalty_type}:${formData.overdue_penalty_value}]\n`;
+    }
+    
     // MODO EDIÇÃO: Atualizar empréstimo existente
     if (editingDailyLoanId) {
       const loan = loans.find(l => l.id === editingDailyLoanId);
@@ -3293,7 +3299,7 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
       const historicalInterestMatch = existingNotes.match(/\[HISTORICAL_INTEREST_RECEIVED:[0-9.]+\]/);
       const historicalInterestTag = historicalInterestMatch ? historicalInterestMatch[0] + ' ' : '';
       
-      const updatedNotes = `${historicalTags}${skipTagsStr}${finalNotes ? finalNotes + '\n' : ''}${details}${partialPaidTags ? '\n' + partialPaidTags : ''}${historicalInterestTag}`.trim();
+      const updatedNotes = `${historicalTags}${overdueTag}${skipTagsStr}${finalNotes ? finalNotes + '\n' : ''}${details}${partialPaidTags ? '\n' + partialPaidTags : ''}${historicalInterestTag}`.trim();
       
       const updateData = {
         client_id: formData.client_id,
@@ -3335,9 +3341,9 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
       total_interest: dailyAmount,
       notes: (() => {
         if (formData.is_historical_contract) {
-          return `[HISTORICAL_CONTRACT]\n${skipTagsStr}${finalNotes ? finalNotes + '\n' : ''}${details}`;
+          return `[HISTORICAL_CONTRACT]\n${overdueTag}${skipTagsStr}${finalNotes ? finalNotes + '\n' : ''}${details}`;
         }
-        return `${skipTagsStr}${finalNotes ? finalNotes + '\n' : ''}${details}`;
+        return `${overdueTag}${skipTagsStr}${finalNotes ? finalNotes + '\n' : ''}${details}`;
       })(),
       installment_dates: installmentDates,
       send_creation_notification: formData.send_creation_notification,
