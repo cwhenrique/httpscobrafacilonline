@@ -1,73 +1,51 @@
 
 
-## Correção: `interest_paid` calculado incorretamente em empréstimos diários com multa
+## Bug: Configuração de juros por atraso não é salva em empréstimos diários
 
 ### Causa Raiz
 
-Dupla contagem da multa no cálculo de `interest_paid`:
+O formulário de empréstimo diário usa `handleDailySubmit` (linha 3208), que constrói as `notes` do empréstimo **sem incluir** a tag `[OVERDUE_CONFIG:...]`. O checkbox e campos de configuração existem na UI (linhas 7209-7266), mas o valor nunca é gravado nas notas.
 
-**Bug 1 — Pagamento de parcela (tipo `installment`):**
-- Linha ~4574: `getInstallmentValue(index)` já adiciona a multa ao valor da parcela
-- Linha ~4762: `extraAmount = getInstallmentValue(parcelas) - baseInstallmentValue * count` → inclui multa
-- Linha ~4770: `interest_paid = (interestPerInstallment + extraAmount) * ratio` → multa JÁ está em interest_paid
-- Linha ~5281: `interest_paid += penaltyInPayment` → **ADICIONA DE NOVO** → valor dobrado
+Em contraste, o `handleSubmit` regular (linha 3905-3909) faz:
+```typescript
+if (formData.overdue_penalty_enabled && formData.overdue_penalty_value) {
+  const penaltyConfig = `[OVERDUE_CONFIG:${formData.overdue_penalty_type}:${formData.overdue_penalty_value}]`;
+  notes = `${penaltyConfig}\n${notes}`.trim();
+}
+```
 
-Resultado na parcela 2 da Jaqueline: interest_paid = (8+33) + 33 = 74, mas deveria ser 41.
+Mas `handleDailySubmit` monta as notas na linha 3336-3341 e nunca adiciona essa tag.
 
-**Bug 2 — Pagamento parcial (tipo `partial`):**
-- Linha ~4781: `interest_paid = min(amount, interestPerInstallment)` = min(19, 8) = 8
-- Linha ~5281: `interest_paid += 22` = 30
-- Mas amount = 19! `interest_paid` (30) excede o valor pago (19)
+### Correção
 
-### Correção em `src/pages/Loans.tsx`
+Em `src/pages/Loans.tsx`, no `handleDailySubmit`, adicionar a tag `[OVERDUE_CONFIG]` nas notas antes de construir o `loanData`.
 
-**Linhas 5278-5282** — Substituir o bloco de ajuste de multa por:
+**Linha ~3279** (após construir `skipTagsStr` e `details`), adicionar:
 
 ```typescript
-if (penaltyInPayment > 0) {
-  if (paymentData.payment_type === 'installment') {
-    // Para pagamento de parcelas, a multa JÁ foi incluída via extraAmount/getInstallmentValue
-    // Apenas ajustar principal para não incluir a multa
-    principal_paid = Math.max(0, amount - interest_paid);
-  } else {
-    // Para pagamento parcial/total, adicionar multa ao interest_paid
-    principal_paid = Math.max(0, principal_paid - penaltyInPayment);
-    interest_paid += penaltyInPayment;
-  }
+// Add overdue penalty configuration if enabled
+let overdueTag = '';
+if (formData.overdue_penalty_enabled && formData.overdue_penalty_value) {
+  overdueTag = `[OVERDUE_CONFIG:${formData.overdue_penalty_type}:${formData.overdue_penalty_value}]\n`;
 }
-
-// Garantia de consistência: interest_paid nunca pode exceder amount
-interest_paid = Math.min(interest_paid, amount);
-principal_paid = Math.max(0, amount - interest_paid);
 ```
 
-### Correção dos dados da Jaqueline no banco
+E nas linhas 3336-3341 (construção das notes no loanData), incluir `overdueTag`:
 
-**Pagamento 88b7614d** (Parcela 2, R$ 61):
-- Atual: interest_paid=74, principal_paid=0
-- Correto: interest_paid=41 (8 juros + 33 multa), principal_paid=20
-- `UPDATE loan_payments SET interest_paid = 41, principal_paid = 20 WHERE id = '88b7614d-71d7-4b21-8332-e74331ce0f1c';`
-
-**Pagamento 49c06f1b** (Parcela 3, R$ 19 parcial):
-- Atual: interest_paid=30, principal_paid=0
-- Correto: interest_paid=19 (pagamento parcial, multa consome tudo), principal_paid=0
-- `UPDATE loan_payments SET interest_paid = 19 WHERE id = '49c06f1b-8345-4039-9547-c8451e0a79e4';`
-
-### Detalhes Técnicos
-
-```text
-Parcela 2 (R$ 61 = R$ 28 base + R$ 33 multa):
-  Base: principal=20, juros=8
-  Multa: 33 (lucro puro)
-  
-  ANTES (bug):  interest=8+33+33=74, principal=max(0,20-33)=0  → total=74 (!!!)
-  DEPOIS (fix): interest=8+33=41,    principal=20              → total=61 ✓
-
-Parcela 3 parcial (R$ 19):
-  Base: juros=min(19,8)=8, principal=11
-  Multa: 22
-  
-  ANTES (bug):  interest=8+22=30, principal=max(0,11-22)=0  → total=30 (!!!)
-  DEPOIS (fix): interest=min(30,19)=19, principal=0          → total=19 ✓
+```typescript
+notes: (() => {
+  if (formData.is_historical_contract) {
+    return `[HISTORICAL_CONTRACT]\n${overdueTag}${skipTagsStr}${finalNotes ? finalNotes + '\n' : ''}${details}`;
+  }
+  return `${overdueTag}${skipTagsStr}${finalNotes ? finalNotes + '\n' : ''}${details}`;
+})(),
 ```
+
+E também na linha 3296 (modo edição), incluir `overdueTag`:
+
+```typescript
+const updatedNotes = `${historicalTags}${overdueTag}${skipTagsStr}${finalNotes ? finalNotes + '\n' : ''}${details}${partialPaidTags ? '\n' + partialPaidTags : ''}${historicalInterestTag}`.trim();
+```
+
+Isso garante que a tag `[OVERDUE_CONFIG:percentage:5]` (por exemplo) seja gravada nas notas do empréstimo diário, permitindo que a Edge Function `check-overdue-loans` detecte e aplique as multas automaticamente.
 
