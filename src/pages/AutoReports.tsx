@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import whatsappReportExample from '@/assets/whatsapp-relatorio-exemplo.png';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -72,11 +72,14 @@ export default function AutoReports() {
     }
   };
 
+  const sendingRef = useRef(false);
   const handleSendTest = async () => {
     if (!profile?.phone) {
       toast.error('Cadastre seu telefone no perfil antes de enviar o teste');
       return;
     }
+    if (sendingRef.current) return;
+    sendingRef.current = true;
     setSendingTest(true);
     try {
       const { data, error } = await supabase.functions.invoke('daily-summary', {
@@ -91,6 +94,8 @@ export default function AutoReports() {
       toast.error('Erro ao enviar relatório de teste');
     }
     setSendingTest(false);
+    // Keep ref locked for 5s to prevent rapid re-clicks
+    setTimeout(() => { sendingRef.current = false; }, 5000);
   };
 
   const toggleCategory = (value: string) => {
