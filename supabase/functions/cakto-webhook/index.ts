@@ -563,8 +563,27 @@ serve(async (req) => {
     const transactionStatus = payload.data?.status || payload.status || payload.event;
 
     // Extract affiliate data (email of the affiliate who referred this customer)
-    const affiliateData = payload.data?.affiliate || payload.affiliate || payload.data?.producer || payload.producer;
-    const affiliateEmail = affiliateData?.email || payload.affiliate_email || payload.data?.affiliate_email || null;
+    // Cakto can send affiliate info in many different structures
+    const affiliateData = payload.data?.affiliate || payload.affiliate || payload.data?.co_producer || payload.co_producer || payload.data?.producer || payload.producer;
+    let affiliateEmail = affiliateData?.email || payload.affiliate_email || payload.data?.affiliate_email || null;
+    
+    // Also check tracking/src fields and checkout URL for affiliate identifiers
+    if (!affiliateEmail) {
+      const tracker = payload.data?.tracker || payload.tracker || payload.data?.src || payload.src || payload.data?.sck || payload.sck || null;
+      const checkoutUrl = payload.data?.checkoutUrl || payload.checkoutUrl || '';
+      const sckMatch = checkoutUrl.match?.(/[?&]sck=([^&]+)/i);
+      const sckFromUrl = sckMatch ? decodeURIComponent(sckMatch[1]) : null;
+      const trackingValue = tracker || sckFromUrl;
+      
+      if (trackingValue && trackingValue !== 'renew') {
+        console.log('Tracking value found:', trackingValue);
+        // If tracking value looks like an email, use it directly
+        if (trackingValue.includes('@')) {
+          affiliateEmail = trackingValue;
+        }
+        // Otherwise, treat it as affiliate identifier - will try to look up later
+      }
+    }
     
     console.log('Extracted customer data:', { email: customerEmail, name: customerName, phone: customerPhone, status: transactionStatus });
     console.log('Extracted affiliate data:', { affiliateEmail });
