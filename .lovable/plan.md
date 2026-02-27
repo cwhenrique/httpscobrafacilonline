@@ -1,42 +1,36 @@
 
 
-## Diagnóstico Completo
+## Diagnóstico
 
-### Padrão encontrado — Usuário Eric (ericsilvasantana2412@gmail.com)
+O relatório do Pedro (pedro90006@gmail.com) não chega porque ele está na **posição 167** na fila de usuários, mas cada horário só tem **3 batches** (0, 1, 2) de 30 usuários cada, cobrindo apenas as posições 0-89. A base cresceu para **194 usuários** e precisa de pelo menos **7 batches** (0-6) por horário.
 
-A correção anterior já foi aplicada nos 3 locais do card/list/buildClientGroup e no `ClientLoansFolder`. O "restante a receber" agora usa `unpaidCount × installmentValue` para daily loans.
+## Correção
 
-Para ROSEMEIRE: 37 parcelas, 10 pagas (tags 0-8 e 13), restante = 27 × R$27 = **R$729**. Parcelas 0 e 3 com R$100 (R$73 de multa cada) não afetam mais o cálculo.
+Adicionar batches 3, 4, 5 e 6 para **todos os horários** (h06 até h19), criando os cron jobs faltantes.
 
-### Problema residual: `getLoanStatus` (linha 2759)
+Cada horário precisa:
+- Batch 3: posições 90-119 (schedule: `3 HH * * *`)
+- Batch 4: posições 120-149 (schedule: `4 HH * * *`)
+- Batch 5: posições 150-179 (schedule: `5 HH * * *`)
+- Batch 6: posições 180-209 (schedule: `6 HH * * *`)
 
-A função `getLoanStatus` ainda usa `remaining_balance` direto do banco (linha 2759). Esta função determina `isPaid` e `remainingToReceive` para a **view de detalhes/expandida** do empréstimo. Para daily loans, o `remaining_balance` pode estar deflacionado por multas, fazendo com que o status apareça incorretamente.
+Serão criados **4 novos cron jobs × 14 horários = 56 novos cron jobs** via SQL insert no `cron.schedule`.
 
-### Alcance global — 22 usuários afetados
+### SQL a executar (via insert tool, não migration)
 
-Consulta no banco identificou **35 empréstimos diários** em **22 usuários** onde o `remaining_balance` diverge do cálculo correto (parcelas abertas × valor), totalizando R$ 1.957,90 de drift. A correção no frontend já resolve a exibição para todos esses usuários, exceto na `getLoanStatus`.
+Para cada horário de h06 a h19, criar batches 3-6 com o pattern:
 
-### Plano de correção
-
-**Arquivo: `src/pages/Loans.tsx`** — 1 local restante:
-
-1. **`getLoanStatus`** (linha 2759): Para daily loans, calcular `remainingToReceive` como `unpaidCount × dailyInstallmentAmount` em vez de usar `loan.remaining_balance`. Para não-daily, manter `remaining_balance`.
-
-```typescript
-// Linha 2756-2759 — de:
-const remainingToReceive = loan.remaining_balance;
-
-// Para:
-let remainingToReceive: number;
-if (isDaily) {
-  const paidCountForStatus = getPaidInstallmentsCount(loan);
-  const dailyAmount = loan.total_interest || 0;
-  const unpaidCount = Math.max(0, numInstallments - paidCountForStatus);
-  remainingToReceive = unpaidCount * dailyAmount;
-} else {
-  remainingToReceive = loan.remaining_balance;
-}
+```sql
+SELECT cron.schedule(
+  'daily-summary-hHH-bN',
+  'N UTC_HOUR * * *',
+  $$SELECT net.http_post(
+    url:='https://yulegybknvtanqkipsbj.supabase.co/functions/v1/daily-summary',
+    headers:='{"Content-Type":"application/json","Authorization":"Bearer ANON_KEY"}'::jsonb,
+    body:='{"targetHour":BRT_HOUR,"batch":N,"batchSize":30}'::jsonb
+  ) as request_id;$$
+);
 ```
 
-Isso garante que a regra **"multas nunca reduzem o restante a receber"** seja aplicada consistentemente em **todas as views** para **todos os usuários**.
+Mapeamento horário BRT → UTC: h06=09, h07=10, h08=11, h09=12, h10=13, h11=14, h12=15, h13=16, h14=17, h15=18, h16=19, h17=20, h18=21, h19=22.
 
