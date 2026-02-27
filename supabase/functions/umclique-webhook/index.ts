@@ -281,7 +281,27 @@ serve(async (req) => {
       });
     }
 
-    // === NO PENDING MESSAGE: Generate report and save as pending (requires confirmation) ===
+    // === NO PENDING MESSAGE: Check if recently confirmed (duplicate webhook from Meta) ===
+    // Meta often sends the same button click event multiple times, causing race conditions
+    const { data: recentlyConfirmed } = await supabase
+      .from('pending_messages')
+      .select('id, confirmed_at')
+      .in('client_phone', phoneVariants)
+      .eq('status', 'confirmed')
+      .gte('confirmed_at', new Date(Date.now() - 60000).toISOString()) // last 60 seconds
+      .limit(1);
+
+    if (recentlyConfirmed && recentlyConfirmed.length > 0) {
+      console.log('Duplicate webhook detected - message was already confirmed recently:', recentlyConfirmed[0].id);
+      return new Response(JSON.stringify({
+        success: true,
+        action: 'duplicate_ignored',
+        message: 'Report was already sent recently',
+      }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
     console.log('No pending message found, generating report as pending for:', senderPhone);
 
     // Find which user this phone belongs to
