@@ -1,33 +1,42 @@
 
 
-## Diagnóstico
+## Diagnóstico Completo
 
-Para ROSEMEIRE: 37 parcelas de R$27 = R$999 total. 10 parcelas pagas (tags PARTIAL_PAID). Porém, nas parcelas 1 e 4, o cliente pagou R$100 cada (R$27 parcela + R$73 multa). O `remaining_balance` do banco é 583 (999 - 416 = 583), mas conta os R$146 de multa como redução do saldo.
+### Padrão encontrado — Usuário Eric (ericsilvasantana2412@gmail.com)
 
-O correto: 27 parcelas abertas × R$27 = **R$729** restante a receber. Multas pagas são lucro extra, não reduzem o que falta cobrar.
+A correção anterior já foi aplicada nos 3 locais do card/list/buildClientGroup e no `ClientLoansFolder`. O "restante a receber" agora usa `unpaidCount × installmentValue` para daily loans.
 
-## Correção
+Para ROSEMEIRE: 37 parcelas, 10 pagas (tags 0-8 e 13), restante = 27 × R$27 = **R$729**. Parcelas 0 e 3 com R$100 (R$73 de multa cada) não afetam mais o cálculo.
 
-**Arquivo: `src/pages/Loans.tsx`** — Para empréstimos diários, calcular `remainingToReceive` com base nas parcelas abertas em vez do `remaining_balance` do banco.
+### Problema residual: `getLoanStatus` (linha 2759)
 
-### Fórmula corrigida para daily loans:
+A função `getLoanStatus` ainda usa `remaining_balance` direto do banco (linha 2759). Esta função determina `isPaid` e `remainingToReceive` para a **view de detalhes/expandida** do empréstimo. Para daily loans, o `remaining_balance` pode estar deflacionado por multas, fazendo com que o status apareça incorretamente.
+
+### Alcance global — 22 usuários afetados
+
+Consulta no banco identificou **35 empréstimos diários** em **22 usuários** onde o `remaining_balance` diverge do cálculo correto (parcelas abertas × valor), totalizando R$ 1.957,90 de drift. A correção no frontend já resolve a exibição para todos esses usuários, exceto na `getLoanStatus`.
+
+### Plano de correção
+
+**Arquivo: `src/pages/Loans.tsx`** — 1 local restante:
+
+1. **`getLoanStatus`** (linha 2759): Para daily loans, calcular `remainingToReceive` como `unpaidCount × dailyInstallmentAmount` em vez de usar `loan.remaining_balance`. Para não-daily, manter `remaining_balance`.
+
 ```typescript
-// Para daily: contar parcelas não pagas × valor da parcela
-const paidCount = getPaidInstallmentsCount(loan);
-const unpaidCount = Math.max(0, numInstallments - paidCount);
-remainingToReceive = unpaidCount * dailyInstallmentAmount;
+// Linha 2756-2759 — de:
+const remainingToReceive = loan.remaining_balance;
+
+// Para:
+let remainingToReceive: number;
+if (isDaily) {
+  const paidCountForStatus = getPaidInstallmentsCount(loan);
+  const dailyAmount = loan.total_interest || 0;
+  const unpaidCount = Math.max(0, numInstallments - paidCountForStatus);
+  remainingToReceive = unpaidCount * dailyAmount;
+} else {
+  remainingToReceive = loan.remaining_balance;
+}
 ```
 
-### Locais a corrigir (4 pontos):
-
-1. **Card view principal** (~linha 8825-8834) — `remainingToReceive` do card individual
-2. **List view diário** (~linhas 11130-11140) — `remainingToReceive` na lista
-3. **`buildClientGroup`** (~linha 3103) — `remainingBalance` da pasta de cliente (usado no `ClientLoansFolder`)
-4. **`ClientLoansFolder.tsx`** — os mini-resumos de cada empréstimo no componente da pasta (campo `loan.remaining` na lista interna) também devem usar a mesma lógica
-
-### Regra geral:
-- Para **daily loans**: `remainingToReceive = (installments - paidCount) × installmentValue`
-- Para **não-daily**: manter lógica atual com `remaining_balance` do banco
-
-Isso garante que multas e juros por atraso nunca diminuam o "restante a receber", pois são tratados como receita extra.
+Isso garante que a regra **"multas nunca reduzem o restante a receber"** seja aplicada consistentemente em **todas as views** para **todos os usuários**.
 
