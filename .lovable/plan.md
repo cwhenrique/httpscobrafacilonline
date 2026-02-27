@@ -1,52 +1,33 @@
 
 
-## Diagnóstico do Bug
+## Diagnóstico
 
-O card "restante a receber" dos empréstimos diários está mostrando valores incorretos (ex: R$ 43 ao invés de R$ 583 para ROSEMEIRE). O problema afeta **15 empréstimos** deste usuário.
+Para ROSEMEIRE: 37 parcelas de R$27 = R$999 total. 10 parcelas pagas (tags PARTIAL_PAID). Porém, nas parcelas 1 e 4, o cliente pagou R$100 cada (R$27 parcela + R$73 multa). O `remaining_balance` do banco é 583 (999 - 416 = 583), mas conta os R$146 de multa como redução do saldo.
 
-### Causa Raiz
+O correto: 27 parcelas abertas × R$27 = **R$729** restante a receber. Multas pagas são lucro extra, não reduzem o que falta cobrar.
 
-A fórmula do `remainingToReceive` no card e na lista subtrai `extraCount * installmentValue` do `remaining_balance`, assumindo que existem tags `[DAILY_PENALTY]` correspondentes que seriam somadas de volta. Porém, nenhum desses empréstimos possui tags `[DAILY_PENALTY]` — apenas `[EXTRA_INSTALLMENTS]`.
+## Correção
 
-```text
-Fórmula atual (ERRADA):
-remainingToReceive = remaining_balance + totalAppliedPenalties - penaltiesAlreadyInBalance
-                   = 583            + 0                     - (20 * 27 = 540)
-                   = 43  ← ERRADO
+**Arquivo: `src/pages/Loans.tsx`** — Para empréstimos diários, calcular `remainingToReceive` com base nas parcelas abertas em vez do `remaining_balance` do banco.
 
-Correto: remaining_balance = 583 (já é o valor correto do banco)
-```
-
-As `EXTRA_INSTALLMENTS` já estão corretamente refletidas no `remaining_balance` pelo trigger do banco. O código subtrai esse valor achando que há duplicação com `DAILY_PENALTY`, mas como não há tags `DAILY_PENALTY`, o resultado é uma subtração indevida.
-
-### Correção
-
-**Arquivo: `src/pages/Loans.tsx`** — 3 locais com a mesma fórmula:
-
-1. **Linha ~8822-8827** (card view não-diário)
-2. **Linha ~11127-11129** (list view diário)
-3. **Linha ~2759** (detalhes do empréstimo)
-
-A correção é: quando `totalAppliedPenalties` (DAILY_PENALTY) é zero, não subtrair `penaltiesAlreadyInBalance`. A subtração só faz sentido quando há `DAILY_PENALTY` tags que seriam somadas ao remaining, criando duplicação com `EXTRA_INSTALLMENTS`.
-
-Fórmula corrigida:
+### Fórmula corrigida para daily loans:
 ```typescript
-// Só subtrair penaltiesAlreadyInBalance se há DAILY_PENALTY tags 
-// (pois a subtração serve para compensar a duplicação entre os dois sistemas)
-const netPenaltyAdjustment = totalAppliedPenalties > 0 
-  ? totalAppliedPenalties - penaltiesAlreadyInBalance 
-  : 0;
-remainingToReceive = Math.max(0, loan.remaining_balance + netPenaltyAdjustment);
+// Para daily: contar parcelas não pagas × valor da parcela
+const paidCount = getPaidInstallmentsCount(loan);
+const unpaidCount = Math.max(0, numInstallments - paidCount);
+remainingToReceive = unpaidCount * dailyInstallmentAmount;
 ```
 
-Isso garante que:
-- Quando há apenas `EXTRA_INSTALLMENTS` (sem `DAILY_PENALTY`): `remainingToReceive = remaining_balance` (correto, banco já reflete tudo)
-- Quando há ambos: a fórmula continua desduplicando corretamente
+### Locais a corrigir (4 pontos):
 
-### Locais a corrigir
+1. **Card view principal** (~linha 8825-8834) — `remainingToReceive` do card individual
+2. **List view diário** (~linhas 11130-11140) — `remainingToReceive` na lista
+3. **`buildClientGroup`** (~linha 3103) — `remainingBalance` da pasta de cliente (usado no `ClientLoansFolder`)
+4. **`ClientLoansFolder.tsx`** — os mini-resumos de cada empréstimo no componente da pasta (campo `loan.remaining` na lista interna) também devem usar a mesma lógica
 
-1. Card view (linhas ~8822-8827) — empréstimos não-diários/card principal
-2. List view daily (linhas ~11127-11129)
-3. Total a Receber no card (linhas ~8782-8787) — mesma lógica para o "Total a Receber"
-4. Qualquer outro local que use a mesma fórmula `remaining_balance + penalties - penaltiesAlreadyInBalance`
+### Regra geral:
+- Para **daily loans**: `remainingToReceive = (installments - paidCount) × installmentValue`
+- Para **não-daily**: manter lógica atual com `remaining_balance` do banco
+
+Isso garante que multas e juros por atraso nunca diminuam o "restante a receber", pois são tratados como receita extra.
 
