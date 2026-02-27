@@ -88,6 +88,23 @@ const extractSimpleMessage = (body: any): { from: string; text: string } | null 
   }
 };
 
+// Split long messages into chunks respecting WhatsApp's 4096 character limit
+const splitMessage = (text: string, maxLen = 4000): string[] => {
+  if (text.length <= maxLen) return [text];
+  const chunks: string[] = [];
+  let remaining = text;
+  while (remaining.length > 0) {
+    if (remaining.length <= maxLen) {
+      chunks.push(remaining);
+      break;
+    }
+    let splitIdx = remaining.lastIndexOf('\n', maxLen);
+    if (splitIdx <= 0) splitIdx = maxLen;
+    chunks.push(remaining.substring(0, splitIdx));
+    remaining = remaining.substring(splitIdx).replace(/^\n/, '');
+  }
+  return chunks;
+};
 
 serve(async (req) => {
   // Handle CORS
@@ -228,25 +245,28 @@ serve(async (req) => {
       };
 
       // Send report text content directly (no template needed - window already open)
-      console.log('Sending report text content to', apiPhone);
-      const textResponse = await fetch(apiUrl, {
-        method: 'POST',
-        headers: apiHeaders,
-        body: JSON.stringify({
-          channel_id: '1060061327180048',
-          to: apiPhone,
-          type: 'text',
-          content: pending.message_content,
-        }),
-      });
-
-      const textResult = await textResponse.text();
-      console.log('Text response:', textResponse.status, textResult);
-
-      if (!textResponse.ok) {
-        console.error('Error sending report text:', textResult);
-        await supabase.from('pending_messages').update({ status: 'failed' }).eq('id', pending.id);
-        throw new Error(`Text send error: ${textResponse.status} - ${textResult}`);
+      // Split into chunks if message exceeds WhatsApp's 4096 char limit
+      const chunks = splitMessage(pending.message_content);
+      console.log(`Sending ${chunks.length} chunk(s) of report text to`, apiPhone);
+      for (let i = 0; i < chunks.length; i++) {
+        if (i > 0) await new Promise(r => setTimeout(r, 1000));
+        const textResponse = await fetch(apiUrl, {
+          method: 'POST',
+          headers: apiHeaders,
+          body: JSON.stringify({
+            channel_id: '1060061327180048',
+            to: apiPhone,
+            type: 'text',
+            content: chunks[i],
+          }),
+        });
+        const textResult = await textResponse.text();
+        console.log(`Chunk ${i+1}/${chunks.length} response:`, textResponse.status, textResult);
+        if (!textResponse.ok) {
+          console.error(`Error sending chunk ${i+1}:`, textResult);
+          await supabase.from('pending_messages').update({ status: 'failed' }).eq('id', pending.id);
+          throw new Error(`Text send error: ${textResponse.status} - ${textResult}`);
+        }
       }
 
       // Update to confirmed + sent

@@ -40,6 +40,26 @@ const formatPhoneNumber = (phone: string): string => {
   return cleaned;
 };
 
+// Split long messages into chunks respecting WhatsApp's 4096 character limit
+// Splits on line breaks to avoid cutting words mid-sentence
+const splitMessage = (text: string, maxLen = 4000): string[] => {
+  if (text.length <= maxLen) return [text];
+  const chunks: string[] = [];
+  let remaining = text;
+  while (remaining.length > 0) {
+    if (remaining.length <= maxLen) {
+      chunks.push(remaining);
+      break;
+    }
+    // Find last newline before maxLen
+    let splitIdx = remaining.lastIndexOf('\n', maxLen);
+    if (splitIdx <= 0) splitIdx = maxLen; // fallback: hard cut
+    chunks.push(remaining.substring(0, splitIdx));
+    remaining = remaining.substring(splitIdx).replace(/^\n/, '');
+  }
+  return chunks;
+};
+
 interface ProfileWithWhatsApp {
   id: string;
   phone: string;
@@ -199,24 +219,27 @@ const sendWhatsAppViaUmClique = async (phone: string, userName: string, message:
       console.log(`Direct send mode: waiting 2s then sending report content to ${cleaned}`);
       await new Promise(resolve => setTimeout(resolve, 2000));
 
-      const textResponse = await fetch(apiUrl, {
-        method: "POST",
-        headers,
-        body: JSON.stringify({
-          channel_id: "1060061327180048",
-          to: cleaned,
-          type: "text",
-          content: message,
-        }),
-      });
-
-      const textResult = await textResponse.text();
-      console.log(`Direct send text response for ${cleaned}:`, textResponse.status, textResult);
-
-      if (!textResponse.ok) {
-        console.error(`Failed to send report text to ${cleaned}:`, textResult);
-        await supabase.from('pending_messages').update({ status: 'failed' }).eq('id', inserted.id);
-        return false;
+      const chunks = splitMessage(message);
+      console.log(`Sending ${chunks.length} chunk(s) to ${cleaned}`);
+      for (let i = 0; i < chunks.length; i++) {
+        if (i > 0) await new Promise(r => setTimeout(r, 1000)); // small delay between chunks
+        const textResponse = await fetch(apiUrl, {
+          method: "POST",
+          headers,
+          body: JSON.stringify({
+            channel_id: "1060061327180048",
+            to: cleaned,
+            type: "text",
+            content: chunks[i],
+          }),
+        });
+        const textResult = await textResponse.text();
+        console.log(`Direct send chunk ${i+1}/${chunks.length} for ${cleaned}:`, textResponse.status, textResult);
+        if (!textResponse.ok) {
+          console.error(`Failed to send chunk ${i+1} to ${cleaned}:`, textResult);
+          await supabase.from('pending_messages').update({ status: 'failed' }).eq('id', inserted.id);
+          return false;
+        }
       }
 
       // Mark as confirmed + sent automatically
