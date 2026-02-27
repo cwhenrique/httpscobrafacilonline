@@ -87,12 +87,42 @@ export function ClientLoansFolder({ group, onOpen }: ClientLoansFolderProps) {
 
   // Get mini summaries for each loan
   const loanSummaries = group.loans.map(loan => {
-    const isPaid = loan.remaining_balance <= 0.01;
+    const isDaily = loan.payment_type === 'daily';
+    const numInstallments = loan.installments || 1;
+    const installmentValue = isDaily ? (loan.total_interest || 0) : 0;
+    
+    // For daily loans, calculate remaining based on unpaid installments
+    let remaining: number;
+    let isPaid: boolean;
+    if (isDaily) {
+      const paidCount = (() => {
+        const dates = safeDates(loan.installment_dates);
+        const perInstallment = installmentValue;
+        if (perInstallment <= 0 || dates.length === 0) return 0;
+        let count = 0;
+        let accumulated = loan.total_paid || 0;
+        for (let i = 0; i < dates.length; i++) {
+          if (accumulated >= perInstallment * 0.99) {
+            count++;
+            accumulated -= perInstallment;
+          } else {
+            break;
+          }
+        }
+        return count;
+      })();
+      const unpaidCount = Math.max(0, numInstallments - paidCount);
+      remaining = unpaidCount * installmentValue;
+      isPaid = remaining <= 0.01;
+    } else {
+      remaining = loan.remaining_balance;
+      isPaid = remaining <= 0.01;
+    }
+
     const dates = safeDates(loan.installment_dates);
     let nextDue: string | null = null;
     
     if (!isPaid && dates.length > 0) {
-      // Find first unpaid date (approximate)
       const paidCount = Math.floor(((loan.total_paid || 0) / ((loan.principal_amount + (loan.total_interest || 0)) / (loan.installments || 1))) + 0.01);
       const idx = Math.min(paidCount, dates.length - 1);
       if (idx < dates.length) {
@@ -103,7 +133,7 @@ export function ClientLoansFolder({ group, onOpen }: ClientLoansFolderProps) {
     return {
       id: loan.id,
       principal: loan.principal_amount,
-      remaining: loan.remaining_balance,
+      remaining,
       isPaid,
       nextDue,
       interestRate: loan.interest_rate,

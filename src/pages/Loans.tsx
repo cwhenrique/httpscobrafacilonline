@@ -3100,7 +3100,16 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
       const { isPaid, isOverdue } = getLoanStatus(loan);
       totalPrincipal += loan.principal_amount;
       totalPaid += loan.total_paid || 0;
-      remainingBalance += loan.remaining_balance;
+      // Para daily loans: calcular remaining com base em parcelas abertas × valor da parcela
+      if (isDaily) {
+        const paidCountForRemaining = getPaidInstallmentsCount(loan);
+        const dailyAmount = loan.total_interest || 0;
+        const numInst = loan.installments || 1;
+        const unpaidCount = Math.max(0, numInst - paidCountForRemaining);
+        remainingBalance += unpaidCount * dailyAmount;
+      } else {
+        remainingBalance += loan.remaining_balance;
+      }
       
       if (isDaily) {
         const dailyAmount = loan.total_interest || 0;
@@ -8825,6 +8834,12 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
                 let remainingToReceive: number;
                 if (loan.status === 'paid') {
                   remainingToReceive = 0;
+                } else if (isDaily) {
+                  // Para daily loans: calcular com base em parcelas abertas × valor da parcela
+                  // Multas/juros por atraso são lucro extra, não reduzem o restante a receber
+                  const paidCountForRemaining = getPaidInstallmentsCount(loan);
+                  const unpaidCount = Math.max(0, numInstallments - paidCountForRemaining);
+                  remainingToReceive = unpaidCount * dailyInstallmentAmount;
                 } else {
                   // Só subtrair penaltiesAlreadyInBalance se há DAILY_PENALTY tags
                   const netPenaltyAdjustment = totalAppliedPenalties > 0 
@@ -11131,13 +11146,20 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
                   const extraCountList = getExtraInstallmentsCount(loan.notes);
                   const penaltiesAlreadyInBalanceList = extraCountList * (loan.total_interest || 0);
                   
-                  // Só subtrair penaltiesAlreadyInBalanceList se há DAILY_PENALTY tags
-                  const netPenaltyAdjustmentList = totalAppliedPenaltiesDaily > 0 
-                    ? totalAppliedPenaltiesDaily - penaltiesAlreadyInBalanceList 
-                    : 0;
-                  const remainingToReceive = loan.status === 'paid' 
-                    ? 0 
-                    : Math.max(0, loan.remaining_balance + netPenaltyAdjustmentList);
+                  // Para daily loans: calcular com base em parcelas abertas × valor da parcela
+                  let remainingToReceive: number;
+                  if (loan.status === 'paid') {
+                    remainingToReceive = 0;
+                  } else if (isDaily) {
+                    const paidCountForRemaining = getPaidInstallmentsCount(loan);
+                    const unpaidCount = Math.max(0, numInstallments - paidCountForRemaining);
+                    remainingToReceive = unpaidCount * dailyInstallmentAmount;
+                  } else {
+                    const netPenaltyAdjustmentList = totalAppliedPenaltiesDaily > 0 
+                      ? totalAppliedPenaltiesDaily - penaltiesAlreadyInBalanceList 
+                      : 0;
+                    remainingToReceive = Math.max(0, loan.remaining_balance + netPenaltyAdjustmentList);
+                  }
                   
                   const isDueToday = (() => {
                     if (isPaid) return false;
