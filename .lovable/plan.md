@@ -1,45 +1,44 @@
 
 
-## Diagnóstico: Pagamento parcial não reconhecido após excluir e pagar novamente
+## Diagnóstico: Multa desaparece ao excluir pagamentos
 
 ### Causa Raiz
 
-No fluxo de exclusão de pagamento (`useLoans.ts`, linhas 849-868), quando o pagamento original que **criou** a sub-parcela é excluído, o bloco `parcelaMatch` remove corretamente a tag `[PARTIAL_PAID:4:...]`, **mas NÃO remove** as tags `[ADVANCE_SUBPARCELA:4:...]` e `[ADVANCE_SUBPARCELA_PAID:4:...]` associadas.
+Quando um pagamento é registrado para uma parcela com multa (R$100 base + R$30 multa), o sistema **remove** a tag `[DAILY_PENALTY:4:30.00]` das notas do empréstimo (linhas 5383-5424 do `Loans.tsx`). Isso é correto — a multa foi paga.
 
-Isso acontece porque:
-- O bloco `advanceMatch` (linha 826) só detecta notas com "Adiantamento - Parcela N"
-- Mas pagamentos feitos via tipo "Parcela" (checkbox) geram notas com "Pagamento parcial - Parcela N/M. Sub-parcela: R$ X"
-- Esse formato **não** é detectado pelo `advanceMatch`, então as sub-parcelas ficam órfãs
+Porém, quando o pagamento é **excluído** (`useLoans.ts`, linhas 849-877), o sistema reverte `PARTIAL_PAID` e `ADVANCE_SUBPARCELA`, mas **nunca restaura** a tag `[DAILY_PENALTY]` que foi removida durante o pagamento.
 
-**Resultado**: Após excluir o pagamento, a `PARTIAL_PAID` é removida (R$ 0,00 pago) mas a sub-parcela continua existindo. Quando o usuário paga novamente, o sistema vê `existingPartials[4] = 0` (nada pago) mas a sub-parcela de R$ 75 ainda aparece, criando inconsistência.
+**Fluxo do problema:**
+1. Parcela 5/28: R$100 base + R$30 multa → tag `[DAILY_PENALTY:4:30.00]` existe
+2. Paga R$100 parcial → cria `PARTIAL_PAID:4:100` + `ADVANCE_SUBPARCELA:4:30` + **remove** `DAILY_PENALTY:4:30`
+3. Paga sub-parcela R$30 → marca `ADVANCE_SUBPARCELA_PAID`
+4. Exclui pagamento da sub-parcela → reverte para `ADVANCE_SUBPARCELA` ✅
+5. Exclui pagamento de R$100 → remove `PARTIAL_PAID` e `ADVANCE_SUBPARCELA` ✅, **mas NÃO restaura** `DAILY_PENALTY:4:30` ❌
+6. Parcela volta a R$100 sem os R$30 de multa
 
 ### Correção
 
-**Arquivo: `src/hooks/useLoans.ts`** (linhas 849-868)
+**Arquivo: `src/hooks/useLoans.ts`** (no bloco `parcelaMatch`, após a remoção das tags de sub-parcela)
 
-No bloco `parcelaMatch`, adicionar a remoção das tags `ADVANCE_SUBPARCELA` e `ADVANCE_SUBPARCELA_PAID` quando a nota do pagamento indica que uma sub-parcela foi criada (contém "Sub-parcela" ou "Pagamento parcial"):
+Extrair o valor da multa da tag `[PENALTY_INCLUDED:X.XX]` presente nas notas do pagamento e restaurar a tag `[DAILY_PENALTY:índice:valor]` nas notas do empréstimo:
 
 ```typescript
-if (parcelaMatch && !advanceMatch && !isSubparcelaPayment && !paymentNotes.includes('[AMORTIZATION]')) {
-  const installmentIndex = parseInt(parcelaMatch[1]) - 1;
-  let newNotes = updatedLoanNotes.replace(
-    new RegExp(`\\[PARTIAL_PAID:${installmentIndex}:[0-9.]+\\]`, 'g'), ''
-  );
-  newNotes = newNotes.replace(
-    new RegExp(`\\[OVERDUE_INTEREST_PAID:${installmentIndex}:[^\\]]+\\]`, 'g'), ''
-  );
-  // 🆕 FIX: Se o pagamento criou sub-parcela, remover as tags também
-  if (paymentNotes.includes('Sub-parcela') || paymentNotes.includes('Pagamento parcial')) {
-    newNotes = newNotes.replace(
-      new RegExp(`\\[ADVANCE_SUBPARCELA:${installmentIndex}:[^\\]]+\\]`, 'g'), ''
-    );
-    newNotes = newNotes.replace(
-      new RegExp(`\\[ADVANCE_SUBPARCELA_PAID:${installmentIndex}:[^\\]]+\\]`, 'g'), ''
-    );
+// Restaurar tag DAILY_PENALTY se o pagamento incluiu multa
+const penaltyMatch = paymentNotes.match(/\[PENALTY_INCLUDED:([0-9.]+)\]/);
+if (penaltyMatch) {
+  const penaltyValue = parseFloat(penaltyMatch[1]);
+  if (penaltyValue > 0) {
+    // Verificar se já não existe uma DAILY_PENALTY para este índice
+    const existingPenalty = new RegExp(`\\[DAILY_PENALTY:${installmentIndex}:[0-9.]+\\]`);
+    if (!existingPenalty.test(newNotes)) {
+      newNotes = `[DAILY_PENALTY:${installmentIndex}:${penaltyValue.toFixed(2)}]\n${newNotes}`.trim();
+    }
   }
-  // ... rest unchanged
 }
 ```
 
-Isso garante que ao excluir um pagamento parcial que criou sub-parcela, TUDO é limpo: `PARTIAL_PAID`, `ADVANCE_SUBPARCELA` e `ADVANCE_SUBPARCELA_PAID`.
+Também aplicar a mesma lógica no bloco `advanceMatch` (linha 826) e no bloco de sub-parcela (linha 808), para cobrir todos os cenários de exclusão.
+
+### Arquivos
+- `src/hooks/useLoans.ts` — restaurar `DAILY_PENALTY` ao excluir pagamento que incluiu multa
 
