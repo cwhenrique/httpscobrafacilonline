@@ -189,40 +189,12 @@ const sendWhatsAppViaUmClique = async (phone: string, userName: string, message:
 
     console.log(`Saved report to pending_messages for ${cleaned} (id: ${inserted.id})`);
 
-    // Send template to open conversation window (required by Meta for 24h window)
-    console.log(`Sending template 'relatorio' to ${cleaned} for user ${userName}`);
-    const templateResponse = await fetch(apiUrl, {
-      method: "POST",
-      headers,
-      body: JSON.stringify({
-        channel_id: "1060061327180048",
-        to: cleaned,
-        type: "template",
-        template_name: "relatorio",
-        template_language: "pt_BR",
-        template_variables: [
-          { type: "text", text: userName }
-        ],
-      }),
-    });
-
-    const templateResult = await templateResponse.text();
-    console.log(`Template response for ${cleaned}:`, templateResponse.status, templateResult);
-
-    if (!templateResponse.ok) {
-      console.error(`Failed to send template to ${cleaned}:`, templateResult);
-      return false;
-    }
-
-    // DIRECT SEND MODE: Send report content immediately after template (no confirmation needed)
-    if (directSend) {
-      console.log(`Direct send mode: waiting 2s then sending report content to ${cleaned}`);
-      await new Promise(resolve => setTimeout(resolve, 2000));
-
+    // Helper to send all text chunks
+    const sendTextChunks = async (): Promise<boolean> => {
       const chunks = splitMessage(message);
       console.log(`Sending ${chunks.length} chunk(s) to ${cleaned}`);
       for (let i = 0; i < chunks.length; i++) {
-        if (i > 0) await new Promise(r => setTimeout(r, 1000)); // small delay between chunks
+        if (i > 0) await new Promise(r => setTimeout(r, 1000));
         const textResponse = await fetch(apiUrl, {
           method: "POST",
           headers,
@@ -234,15 +206,65 @@ const sendWhatsAppViaUmClique = async (phone: string, userName: string, message:
           }),
         });
         const textResult = await textResponse.text();
-        console.log(`Direct send chunk ${i+1}/${chunks.length} for ${cleaned}:`, textResponse.status, textResult);
+        console.log(`Chunk ${i+1}/${chunks.length} for ${cleaned}:`, textResponse.status, textResult);
         if (!textResponse.ok) {
-          console.error(`Failed to send chunk ${i+1} to ${cleaned}:`, textResult);
+          console.error(`Failed chunk ${i+1} to ${cleaned}:`, textResult);
+          return false;
+        }
+      }
+      return true;
+    };
+
+    // Helper to send template
+    const sendTemplate = async (): Promise<boolean> => {
+      console.log(`Sending template 'relatorio' to ${cleaned} for user ${userName}`);
+      const templateResponse = await fetch(apiUrl, {
+        method: "POST",
+        headers,
+        body: JSON.stringify({
+          channel_id: "1060061327180048",
+          to: cleaned,
+          type: "template",
+          template_name: "relatorio",
+          template_language: "pt_BR",
+          template_variables: [
+            { type: "text", text: userName }
+          ],
+        }),
+      });
+      const templateResult = await templateResponse.text();
+      console.log(`Template response for ${cleaned}:`, templateResponse.status, templateResult);
+      if (!templateResponse.ok) {
+        console.error(`Failed to send template to ${cleaned}:`, templateResult);
+        return false;
+      }
+      return true;
+    };
+
+    // DIRECT SEND MODE: Try text first (window may already be open), fall back to template
+    if (directSend) {
+      console.log(`Direct send mode for ${cleaned}: trying text first`);
+      let textSent = await sendTextChunks();
+
+      if (!textSent) {
+        // Text failed - window probably not open. Send template, wait, then retry text
+        console.log(`Text failed for ${cleaned}, trying template + retry`);
+        const templateOk = await sendTemplate();
+        if (!templateOk) {
+          console.error(`Both text and template failed for ${cleaned}`);
+          await supabase.from('pending_messages').update({ status: 'failed' }).eq('id', inserted.id);
+          return false;
+        }
+        await new Promise(resolve => setTimeout(resolve, 2000));
+        textSent = await sendTextChunks();
+        if (!textSent) {
+          console.error(`Text retry after template also failed for ${cleaned}`);
           await supabase.from('pending_messages').update({ status: 'failed' }).eq('id', inserted.id);
           return false;
         }
       }
 
-      // Mark as confirmed + sent automatically
+      // Mark as confirmed + sent
       await supabase
         .from('pending_messages')
         .update({
@@ -252,7 +274,6 @@ const sendWhatsAppViaUmClique = async (phone: string, userName: string, message:
         })
         .eq('id', inserted.id);
 
-      // Register in whatsapp_messages for audit
       await supabase.from('whatsapp_messages').insert({
         user_id: userId,
         contract_type: 'loan',
@@ -262,6 +283,14 @@ const sendWhatsAppViaUmClique = async (phone: string, userName: string, message:
       });
 
       console.log(`Direct send completed successfully for ${cleaned}`);
+      return true;
+    }
+
+    // NON-DIRECT MODE: Send template only, wait for webhook confirmation
+    const templateOk = await sendTemplate();
+    if (!templateOk) {
+      await supabase.from('pending_messages').update({ status: 'failed' }).eq('id', inserted.id);
+      return false;
     }
 
     return true;
