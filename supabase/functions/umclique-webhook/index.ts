@@ -211,7 +211,7 @@ serve(async (req) => {
       const pending = pendingMessages[0];
       console.log(`Found pending message: ${pending.id} for client: ${pending.client_name}`);
 
-      // Send report via Um Clique Digital API
+      // Send report directly via Um Clique Digital API (conversation window already open from user reply)
       const umcliqueApiKey = Deno.env.get('UMCLIQUE_API_KEY');
       if (!umcliqueApiKey) {
         console.error('UMCLIQUE_API_KEY not configured');
@@ -227,37 +227,8 @@ serve(async (req) => {
         'X-API-Key': umcliqueApiKey,
       };
 
-      // Step 1: Send template to open conversation window
-      console.log('Step 1: Sending template to open conversation window for', apiPhone);
-      const templateResponse = await fetch(apiUrl, {
-        method: 'POST',
-        headers: apiHeaders,
-        body: JSON.stringify({
-          channel_id: '1060061327180048',
-          to: apiPhone,
-          type: 'template',
-          template_name: 'relatorio',
-          template_language: 'pt_BR',
-          template_variables: [
-            { type: 'text', text: pending.client_name }
-          ],
-        }),
-      });
-
-      const templateResult = await templateResponse.text();
-      console.log('Template response:', templateResponse.status, templateResult);
-
-      if (!templateResponse.ok) {
-        console.error('Error sending template:', templateResult);
-        await supabase.from('pending_messages').update({ status: 'failed' }).eq('id', pending.id);
-        throw new Error(`Template send error: ${templateResponse.status} - ${templateResult}`);
-      }
-
-      // Step 2: Wait for conversation window
-      await new Promise(resolve => setTimeout(resolve, 2000));
-
-      // Step 3: Send actual report content
-      console.log('Step 3: Sending report text content to', apiPhone);
+      // Send report text content directly (no template needed - window already open)
+      console.log('Sending report text content to', apiPhone);
       const textResponse = await fetch(apiUrl, {
         method: 'POST',
         headers: apiHeaders,
