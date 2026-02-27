@@ -281,6 +281,11 @@ const handler = async (req: Request): Promise<Response> => {
           if (firstUnpaidIndex >= 0 && firstUnpaidIndex < installmentDates.length) { nextDueDate = installmentDates[firstUnpaidIndex]; installmentNum = firstUnpaidIndex+1; }
           else if (loan.remaining_balance > 0) { nextDueDate = loan.due_date; if (loan.payment_type === 'single') installmentAmount = remainingBalance; }
           if (!nextDueDate) continue;
+          // Subtract partial payment already made on this installment
+          if (firstUnpaidIndex >= 0) {
+            const alreadyPaid = partialPayments[firstUnpaidIndex] || 0;
+            if (alreadyPaid > 0) installmentAmount = Math.max(0, installmentAmount - alreadyPaid);
+          }
           const dueDate = new Date(nextDueDate); dueDate.setHours(0,0,0,0);
           const paidCount = Object.keys(partialPayments).filter(k => partialPayments[parseInt(k)] >= installmentValue*0.99).length;
           const progressPercent = Math.round((paidCount/numInstallments)*100);

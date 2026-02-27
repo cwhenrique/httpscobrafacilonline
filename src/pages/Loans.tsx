@@ -207,28 +207,33 @@ const getEffectiveInstallmentValue = (
   const totalAmortizations = getTotalAmortizationsFromNotes(loan.notes);
   const isDaily = loan.payment_type === 'daily';
   
+  let baseValue = normalInstallmentValue;
+  
   // Se houve amortização e não é empréstimo diário, usar remaining_balance
   if (totalAmortizations > 0 && !isDaily) {
     const numInstallments = loan.installments || 1;
     const remainingInstallments = Math.max(1, numInstallments - paidInstallmentsCount);
-    return loan.remaining_balance / remainingInstallments;
-  }
-  
-  // Parcelas personalizadas: usar valor individual
-  if (loan.interest_mode === 'custom' && !isDaily) {
+    baseValue = loan.remaining_balance / remainingInstallments;
+  } else if (loan.interest_mode === 'custom' && !isDaily) {
+    // Parcelas personalizadas: usar valor individual
     const customValues = parseCustomInstallments(loan.notes);
     if (customValues && paidInstallmentsCount < customValues.length) {
-      return customValues[paidInstallmentsCount];
+      baseValue = customValues[paidInstallmentsCount];
     }
-  }
-
-  // SAC: cada parcela tem valor individual decrescente
-  if (loan.interest_mode === 'sac' && !isDaily) {
+  } else if (loan.interest_mode === 'sac' && !isDaily) {
+    // SAC: cada parcela tem valor individual decrescente
     const numInstallments = loan.installments || 1;
-    return calculateSACInstallmentValue(loan.principal_amount, loan.interest_rate, numInstallments, paidInstallmentsCount);
+    baseValue = calculateSACInstallmentValue(loan.principal_amount, loan.interest_rate, numInstallments, paidInstallmentsCount);
   }
   
-  return normalInstallmentValue;
+  // Subtract partial payment already made on the current installment
+  const partialPayments = getPartialPaymentsFromNotes(loan.notes);
+  const alreadyPaid = partialPayments[paidInstallmentsCount] || 0;
+  if (alreadyPaid > 0 && alreadyPaid < baseValue * 0.99) {
+    return Math.max(0, baseValue - alreadyPaid);
+  }
+  
+  return baseValue;
 };
 
 // Helper para extrair sub-parcelas de adiantamento do notes
