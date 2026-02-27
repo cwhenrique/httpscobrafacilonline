@@ -2753,10 +2753,17 @@ const [customOverdueDaysMin, setCustomOverdueDaysMin] = useState<string>('');
       totalToReceive = loan.principal_amount + totalInterest;
     }
     
-    // CORREÇÃO: Usar remaining_balance do banco como fonte de verdade
-    // O banco já exclui corretamente os pagamentos de "somente juros" do cálculo
-    // Isso evita que empréstimos com múltiplos pagamentos de juros apareçam como quitados
-    const remainingToReceive = loan.remaining_balance;
+    // CORREÇÃO: Para daily loans, calcular restante com base em parcelas abertas × valor
+    // Multas/juros por atraso nunca reduzem o restante a receber
+    let remainingToReceive: number;
+    if (isDaily) {
+      const paidCountForStatus = getPaidInstallmentsCount(loan);
+      const dailyAmount = loan.total_interest || 0;
+      const unpaidCountForStatus = Math.max(0, numInstallments - paidCountForStatus);
+      remainingToReceive = unpaidCountForStatus * dailyAmount;
+    } else {
+      remainingToReceive = loan.remaining_balance;
+    }
     const principalPerInstallment = loan.principal_amount / numInstallments;
     const interestPerInstallment = totalInterest / numInstallments;
     const totalPerInstallment = principalPerInstallment + interestPerInstallment;
