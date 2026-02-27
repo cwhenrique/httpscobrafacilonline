@@ -1,44 +1,28 @@
 
 
-## Diagnóstico: Multa desaparece ao excluir pagamentos
+## Problema: Webhook envia template duplicado ao confirmar
 
-### Causa Raiz
-
-Quando um pagamento é registrado para uma parcela com multa (R$100 base + R$30 multa), o sistema **remove** a tag `[DAILY_PENALTY:4:30.00]` das notas do empréstimo (linhas 5383-5424 do `Loans.tsx`). Isso é correto — a multa foi paga.
-
-Porém, quando o pagamento é **excluído** (`useLoans.ts`, linhas 849-877), o sistema reverte `PARTIAL_PAID` e `ADVANCE_SUBPARCELA`, mas **nunca restaura** a tag `[DAILY_PENALTY]` que foi removida durante o pagamento.
-
-**Fluxo do problema:**
-1. Parcela 5/28: R$100 base + R$30 multa → tag `[DAILY_PENALTY:4:30.00]` existe
-2. Paga R$100 parcial → cria `PARTIAL_PAID:4:100` + `ADVANCE_SUBPARCELA:4:30` + **remove** `DAILY_PENALTY:4:30`
-3. Paga sub-parcela R$30 → marca `ADVANCE_SUBPARCELA_PAID`
-4. Exclui pagamento da sub-parcela → reverte para `ADVANCE_SUBPARCELA` ✅
-5. Exclui pagamento de R$100 → remove `PARTIAL_PAID` e `ADVANCE_SUBPARCELA` ✅, **mas NÃO restaura** `DAILY_PENALTY:4:30` ❌
-6. Parcela volta a R$100 sem os R$30 de multa
+Quando o usuário clica em "Receber relatório", o webhook (`umclique-webhook/index.ts`) encontra a `pending_message` e nas **linhas 230-245** envia **outro template** antes de enviar o conteúdo. Isso é desnecessário — o usuário acabou de responder ao primeiro template, então a janela de 24h da Meta já está aberta.
 
 ### Correção
 
-**Arquivo: `src/hooks/useLoans.ts`** (no bloco `parcelaMatch`, após a remoção das tags de sub-parcela)
+**Arquivo: `supabase/functions/umclique-webhook/index.ts`** (linhas 210-278)
 
-Extrair o valor da multa da tag `[PENALTY_INCLUDED:X.XX]` presente nas notas do pagamento e restaurar a tag `[DAILY_PENALTY:índice:valor]` nas notas do empréstimo:
+Remover o envio do template no fluxo de confirmação. Quando há `pending_message`, enviar **apenas o conteúdo do relatório** diretamente, sem template intermediário:
 
 ```typescript
-// Restaurar tag DAILY_PENALTY se o pagamento incluiu multa
-const penaltyMatch = paymentNotes.match(/\[PENALTY_INCLUDED:([0-9.]+)\]/);
-if (penaltyMatch) {
-  const penaltyValue = parseFloat(penaltyMatch[1]);
-  if (penaltyValue > 0) {
-    // Verificar se já não existe uma DAILY_PENALTY para este índice
-    const existingPenalty = new RegExp(`\\[DAILY_PENALTY:${installmentIndex}:[0-9.]+\\]`);
-    if (!existingPenalty.test(newNotes)) {
-      newNotes = `[DAILY_PENALTY:${installmentIndex}:${penaltyValue.toFixed(2)}]\n${newNotes}`.trim();
-    }
-  }
-}
+// ANTES (linhas 230-257):
+// Step 1: Sending template to open conversation window  ← ERRADO, janela já aberta
+// Step 2: Wait 2s
+// Step 3: Send report text
+
+// DEPOIS:
+// Enviar apenas o texto do relatório (janela já aberta pela resposta do usuário)
 ```
 
-Também aplicar a mesma lógica no bloco `advanceMatch` (linha 826) e no bloco de sub-parcela (linha 808), para cobrir todos os cenários de exclusão.
+Especificamente:
+1. Remover o bloco de envio de template (linhas 230-254) e o delay de 2s (linha 257)
+2. Manter apenas o envio do texto do relatório (linhas 260-278)
 
-### Arquivos
-- `src/hooks/useLoans.ts` — restaurar `DAILY_PENALTY` ao excluir pagamento que incluiu multa
+Isso resolve o loop onde cada confirmação gerava um novo template pedindo confirmação novamente.
 
