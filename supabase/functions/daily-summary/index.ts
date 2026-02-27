@@ -301,6 +301,7 @@ const sendWhatsAppViaUmClique = async (phone: string, userName: string, message:
 };
 
 // Send WhatsApp message to user's own instance via UAZAPI
+// Splits long messages into chunks of up to 4000 chars
 const sendWhatsAppToSelf = async (profile: ProfileWithWhatsApp, message: string): Promise<boolean> => {
   if (!profile.whatsapp_instance_token || !profile.whatsapp_connected_phone) {
     console.log(`User ${profile.id} has no WhatsApp connected, skipping`);
@@ -310,13 +311,22 @@ const sendWhatsAppToSelf = async (profile: ProfileWithWhatsApp, message: string)
   if (!uazapiUrl) return false;
   const formattedPhone = formatPhoneNumber(profile.whatsapp_connected_phone);
   try {
-    const response = await fetch(`${uazapiUrl}/send/text`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", "token": profile.whatsapp_instance_token },
-      body: JSON.stringify({ phone: formattedPhone, message }),
-    });
-    console.log(`WhatsApp sent to ${formattedPhone}: ${response.status}`);
-    return response.ok;
+    const chunks = splitMessage(message);
+    console.log(`Sending ${chunks.length} chunk(s) via UAZAPI to ${formattedPhone}`);
+    for (let i = 0; i < chunks.length; i++) {
+      if (i > 0) await new Promise(r => setTimeout(r, 1000));
+      const response = await fetch(`${uazapiUrl}/send/text`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "token": profile.whatsapp_instance_token },
+        body: JSON.stringify({ phone: formattedPhone, message: chunks[i] }),
+      });
+      console.log(`Chunk ${i+1}/${chunks.length} to ${formattedPhone}: ${response.status}`);
+      if (!response.ok) {
+        console.error(`Failed chunk ${i+1} to ${formattedPhone}`);
+        return false;
+      }
+    }
+    return true;
   } catch (error) {
     console.error(`Failed to send WhatsApp to ${formattedPhone}:`, error);
     return false;
