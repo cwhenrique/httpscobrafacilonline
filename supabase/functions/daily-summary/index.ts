@@ -370,7 +370,7 @@ const handler = async (req: Request): Promise<Response> => {
       testPhone = body.testPhone || null;
       targetHour = typeof body.targetHour === 'number' ? body.targetHour : null;
       batch = typeof body.batch === 'number' ? body.batch : 0;
-      batchSize = typeof body.batchSize === 'number' ? body.batchSize : 3;
+      batchSize = typeof body.batchSize === 'number' ? body.batchSize : 30;
       force = body.force === true;
       directSend = body.directSend === true;
       
