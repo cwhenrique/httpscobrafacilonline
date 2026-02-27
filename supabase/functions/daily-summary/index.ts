@@ -300,6 +300,7 @@ const handler = async (req: Request): Promise<Response> => {
     let batch = 0;
     let batchSize = 30; // Otimizado: batch maior para reduzir número de cron jobs
     let force = false;
+    let directSend = false;
     
     try {
       const body = await req.json();
@@ -309,6 +310,7 @@ const handler = async (req: Request): Promise<Response> => {
       batch = typeof body.batch === 'number' ? body.batch : 0;
       batchSize = typeof body.batchSize === 'number' ? body.batchSize : 3;
       force = body.force === true;
+      directSend = body.directSend === true;
       
     } catch {
       // No body or invalid JSON, default to report mode
@@ -846,10 +848,11 @@ const handler = async (req: Request): Promise<Response> => {
       console.log(`Sending ${isReminder ? 'reminder' : 'report'} to user ${profile.id} (relatorio_ativo: ${profile.relatorio_ativo})`);
       
       // Route: relatorio_ativo users go via Um Clique Digital API, others via UAZAPI
-      // For scheduled sends (not manual test), use directSend to skip confirmation flow
+      // Scheduled sends are always direct; manual test can force direct via body.directSend
       const isScheduledSend = !testPhone;
+      const shouldDirectSend = isScheduledSend || directSend;
       const sent = profile.relatorio_ativo
-        ? await sendWhatsAppViaUmClique(profile.phone, profile.full_name || 'Cliente', messageText, profile.id, supabase, force, isScheduledSend)
+        ? await sendWhatsAppViaUmClique(profile.phone, profile.full_name || 'Cliente', messageText, profile.id, supabase, force, shouldDirectSend)
         : await sendWhatsAppToSelf(profile, messageText);
       if (sent) {
         sentCount++;

@@ -88,7 +88,7 @@ export default function AutoReports() {
     setSendingTest(true);
     try {
       const { data, error } = await supabase.functions.invoke('daily-summary', {
-        body: { testPhone: profile.phone },
+        body: { testPhone: profile.phone, force: true, directSend: true },
       });
       if (error) {
         toast.error('Erro ao enviar relatório de teste');
