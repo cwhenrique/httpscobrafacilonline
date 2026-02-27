@@ -819,6 +819,16 @@ export function useLoans() {
           updatedLoanNotes = newNotes;
           notesChanged = true;
         }
+        // Restaurar DAILY_PENALTY se o pagamento de sub-parcela incluiu multa
+        const subPenaltyMatch = paymentNotes.match(/\[PENALTY_INCLUDED:([0-9.]+)\]/);
+        if (subPenaltyMatch && parseFloat(subPenaltyMatch[1]) > 0) {
+          const penaltyValue = parseFloat(subPenaltyMatch[1]);
+          const existingPenalty = new RegExp(`\\[DAILY_PENALTY:${originalIndex}:[0-9.]+\\]`);
+          if (!existingPenalty.test(updatedLoanNotes)) {
+            updatedLoanNotes = `[DAILY_PENALTY:${originalIndex}:${penaltyValue.toFixed(2)}]\n${updatedLoanNotes}`.trim();
+            notesChanged = true;
+          }
+        }
       }
     }
     
@@ -840,6 +850,15 @@ export function useLoans() {
         new RegExp(`\\[ADVANCE_SUBPARCELA_PAID:${installmentIndex}:[^\\]]+\\]`, 'g'), 
         ''
       );
+      // Restaurar DAILY_PENALTY se o pagamento incluiu multa
+      const advPenaltyMatch = paymentNotes.match(/\[PENALTY_INCLUDED:([0-9.]+)\]/);
+      if (advPenaltyMatch && parseFloat(advPenaltyMatch[1]) > 0) {
+        const penaltyValue = parseFloat(advPenaltyMatch[1]);
+        const existingPenalty = new RegExp(`\\[DAILY_PENALTY:${installmentIndex}:[0-9.]+\\]`);
+        if (!existingPenalty.test(newNotes)) {
+          newNotes = `[DAILY_PENALTY:${installmentIndex}:${penaltyValue.toFixed(2)}]\n${newNotes}`.trim();
+        }
+      }
       if (newNotes !== updatedLoanNotes) {
         updatedLoanNotes = newNotes;
         notesChanged = true;
@@ -869,6 +888,15 @@ export function useLoans() {
         newNotes = newNotes.replace(
           new RegExp(`\\[ADVANCE_SUBPARCELA_PAID:${installmentIndex}:[^\\]]+\\]`, 'g'), ''
         );
+      }
+      // Restaurar DAILY_PENALTY se o pagamento incluiu multa
+      const parcPenaltyMatch = paymentNotes.match(/\[PENALTY_INCLUDED:([0-9.]+)\]/);
+      if (parcPenaltyMatch && parseFloat(parcPenaltyMatch[1]) > 0) {
+        const penaltyValue = parseFloat(parcPenaltyMatch[1]);
+        const existingPenalty = new RegExp(`\\[DAILY_PENALTY:${installmentIndex}:[0-9.]+\\]`);
+        if (!existingPenalty.test(newNotes)) {
+          newNotes = `[DAILY_PENALTY:${installmentIndex}:${penaltyValue.toFixed(2)}]\n${newNotes}`.trim();
+        }
       }
       if (newNotes !== updatedLoanNotes) {
         updatedLoanNotes = newNotes;
