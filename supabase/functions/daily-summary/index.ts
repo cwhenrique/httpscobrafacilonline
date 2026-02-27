@@ -424,12 +424,19 @@ const handler = async (req: Request): Promise<Response> => {
 
     console.log(`Processing ${profiles?.length || 0} users in batch ${batch}`);
 
+    // Auto-detect current hour in Brasília (UTC-3) when targetHour not specified and not testing
+    if (targetHour === null && !testPhone) {
+      const nowBrasilia = new Date(Date.now() - 3 * 60 * 60 * 1000);
+      targetHour = nowBrasilia.getUTCHours();
+      console.log(`Auto-detected Brasília hour: ${targetHour}`);
+    }
+
     let sentCount = 0;
 
     for (const profile of (profiles || []) as ProfileWithWhatsApp[]) {
       if (!profile.phone) continue;
 
-      // If targetHour is specified (from cron), filter by user's scheduled hours
+      // Filter by user's scheduled hours (always apply when not testing)
       // Use auto_report_hour as source of truth when report_schedule_hours is empty
       if (targetHour !== null && !testPhone) {
         const scheduleHours = profile.report_schedule_hours || [];
