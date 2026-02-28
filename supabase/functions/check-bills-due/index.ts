@@ -66,7 +66,7 @@ const sendWhatsApp = async (phone: string, message: string, instanceToken: strin
     const response = await fetch(`${uazapiUrl}/send/text`, {
       method: "POST",
       headers: { "Content-Type": "application/json", "token": instanceToken },
-      body: JSON.stringify({ phone: cleaned, message }),
+      body: JSON.stringify({ number: cleaned, text: message }),
     });
 
     if (!response.ok) {
