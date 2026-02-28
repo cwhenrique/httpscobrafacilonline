@@ -550,7 +550,11 @@ const handler = async (req: Request): Promise<Response> => {
         }
         
         const remainingBalance = loan.remaining_balance;
-        const totalToReceive = remainingBalance + (loan.total_paid || 0);
+        // Calculate total contract value from original values (NOT from remaining + paid, 
+        // which inflates when interest-only payments exist)
+        const totalToReceive = loan.payment_type === 'daily'
+          ? (loan.total_interest || 0) * numInstallments
+          : loan.principal_amount + totalInterest;
         const totalPerInstallment = totalToReceive / numInstallments;
         
         // Ler tags PARTIAL_PAID das notas para saber quais parcelas específicas foram pagas
@@ -626,6 +630,14 @@ const handler = async (req: Request): Promise<Response> => {
           }
 
           if (!nextDueDate) continue;
+
+          // Subtract partial payment already made on this installment
+          if (firstUnpaidIndex >= 0) {
+            const partialPaidOnInstallment = partialPayments[firstUnpaidIndex] || 0;
+            if (partialPaidOnInstallment > 0) {
+              installmentAmount = Math.max(0, installmentAmount - partialPaidOnInstallment);
+            }
+          }
 
           const dueDate = new Date(nextDueDate);
           dueDate.setHours(0, 0, 0, 0);
@@ -795,7 +807,7 @@ const handler = async (req: Request): Promise<Response> => {
       // Portfolio metrics
       const activeLoansCount = (loans || []).filter(l => l.status !== 'paid').length;
       const activeClientIds = new Set((loans || []).filter(l => l.status !== 'paid').map(l => l.client_id));
-      const capitalNaRua = (loans || []).filter(l => l.status !== 'paid').reduce((sum, l) => sum + l.remaining_balance, 0);
+      const capitalNaRua = (loans || []).filter(l => l.status !== 'paid').reduce((sum, l) => sum + l.principal_amount, 0);
       const activeContractsCount = new Set(userContractPayments.map((p: any) => p.contract_id)).size;
 
       // Build executive report message
