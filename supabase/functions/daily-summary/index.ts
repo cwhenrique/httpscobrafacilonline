@@ -241,26 +241,32 @@ const sendWhatsAppViaUmClique = async (phone: string, userName: string, message:
       return true;
     };
 
-    // DIRECT SEND MODE: Try text first (window may already be open), fall back to template
+    // DIRECT SEND MODE: Send template first to ensure conversation window is open, then send text
     if (directSend) {
-      console.log(`Direct send mode for ${cleaned}: trying text first`);
-      let textSent = await sendTextChunks();
-
+      console.log(`Direct send mode for ${cleaned}: sending template first to open window`);
+      
+      // Step 1: Send template to guarantee the conversation window opens
+      const templateOk = await sendTemplate();
+      if (!templateOk) {
+        console.error(`Template failed for ${cleaned} - cannot proceed`);
+        await supabase.from('pending_messages').update({ status: 'failed' }).eq('id', inserted.id);
+        return false;
+      }
+      
+      // Step 2: Wait for template to be delivered and window to open
+      await new Promise(resolve => setTimeout(resolve, 4000));
+      
+      // Step 3: Send the actual report text
+      const textSent = await sendTextChunks();
       if (!textSent) {
-        // Text failed - window probably not open. Send template, wait, then retry text
-        console.log(`Text failed for ${cleaned}, trying template + retry`);
-        const templateOk = await sendTemplate();
-        if (!templateOk) {
-          console.error(`Both text and template failed for ${cleaned}`);
-          await supabase.from('pending_messages').update({ status: 'failed' }).eq('id', inserted.id);
-          return false;
-        }
-        await new Promise(resolve => setTimeout(resolve, 2000));
-        textSent = await sendTextChunks();
-        if (!textSent) {
-          console.error(`Text retry after template also failed for ${cleaned}`);
-          await supabase.from('pending_messages').update({ status: 'failed' }).eq('id', inserted.id);
-          return false;
+        // Retry once more after additional wait
+        console.log(`Text failed after template for ${cleaned}, retrying after 3s...`);
+        await new Promise(resolve => setTimeout(resolve, 3000));
+        const retrySent = await sendTextChunks();
+        if (!retrySent) {
+          console.error(`Text retry also failed for ${cleaned} - report saved as pending for webhook delivery`);
+          // Don't mark as failed - the pending message can still be delivered via webhook
+          return true;
         }
       }
 
