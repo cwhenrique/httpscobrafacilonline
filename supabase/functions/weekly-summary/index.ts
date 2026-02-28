@@ -106,7 +106,8 @@ const handler = async (req: Request): Promise<Response> => {
           } else totalInterest = loan.principal_amount * (loan.interest_rate / 100) * numInstallments;
         }
         const remainingBalance = loan.remaining_balance;
-        const totalToReceive = remainingBalance + (loan.total_paid || 0);
+        // Calculate total contract value from original values (not remaining + paid)
+        const totalToReceive = loan.principal_amount + totalInterest;
         const totalPerInstallment = totalToReceive / numInstallments;
         const paidInstallments = Math.floor((loan.total_paid || 0) / totalPerInstallment);
         let nextDueDate = installmentDates.length > 0 && paidInstallments < installmentDates.length
