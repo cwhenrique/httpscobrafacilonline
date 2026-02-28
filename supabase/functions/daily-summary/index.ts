@@ -398,12 +398,12 @@ const handler = async (req: Request): Promise<Response> => {
       .from('profiles')
       .select('id, phone, full_name, subscription_plan, whatsapp_instance_token, whatsapp_connected_phone, report_schedule_hours, auto_report_hour, relatorio_ativo')
       .eq('is_active', true)
+      .eq('relatorio_ativo', true)
       .not('phone', 'is', null)
       .not('subscription_plan', 'eq', 'trial')
-      .or('whatsapp_instance_token.not.is.null,relatorio_ativo.eq.true')
       .order('id');
     
-    console.log("Querying PAYING users with WhatsApp connected OR relatorio_ativo");
+    console.log("Querying PAYING users with relatorio_ativo = true");
 
     // Filter by testPhone if provided (ignores batch when testing)
     if (testPhone) {
