@@ -21,7 +21,7 @@ async function sendWhatsAppMessage(phone: string, message: string, instanceToken
     const response = await fetch(`${uazapiUrl}/send/text`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'token': instanceToken },
-      body: JSON.stringify({ phone: formattedPhone, message }),
+      body: JSON.stringify({ number: formattedPhone, text: message }),
     });
     if (!response.ok) {
       const errorText = await response.text();

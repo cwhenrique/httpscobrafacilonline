@@ -318,11 +318,12 @@ const sendWhatsAppToSelf = async (profile: ProfileWithWhatsApp, message: string)
       const response = await fetch(`${uazapiUrl}/send/text`, {
         method: "POST",
         headers: { "Content-Type": "application/json", "token": profile.whatsapp_instance_token },
-        body: JSON.stringify({ phone: formattedPhone, message: chunks[i] }),
+        body: JSON.stringify({ number: formattedPhone, text: chunks[i] }),
       });
-      console.log(`Chunk ${i+1}/${chunks.length} to ${formattedPhone}: ${response.status}`);
+      const responseText = await response.text();
+      console.log(`Chunk ${i+1}/${chunks.length} to ${formattedPhone}: ${response.status} ${responseText.substring(0, 200)}`);
       if (!response.ok) {
-        console.error(`Failed chunk ${i+1} to ${formattedPhone}`);
+        console.error(`Failed chunk ${i+1} to ${formattedPhone}: ${responseText.substring(0, 300)}`);
         return false;
       }
     }
