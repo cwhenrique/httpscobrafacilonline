@@ -393,17 +393,22 @@ const handler = async (req: Request): Promise<Response> => {
       console.log("TEST MODE - sending only to:", testPhone);
     }
 
-    // Get all ACTIVE PAYING users with WhatsApp connected
+    // Get all ACTIVE PAYING users
     let profilesQuery = supabase
       .from('profiles')
       .select('id, phone, full_name, subscription_plan, whatsapp_instance_token, whatsapp_connected_phone, report_schedule_hours, auto_report_hour, relatorio_ativo')
       .eq('is_active', true)
-      .eq('relatorio_ativo', true)
       .not('phone', 'is', null)
-      .not('subscription_plan', 'eq', 'trial')
-      .order('id');
+      .not('subscription_plan', 'eq', 'trial');
+
+    // Only filter by relatorio_ativo for scheduled (non-test) sends
+    if (!testPhone) {
+      profilesQuery = profilesQuery.eq('relatorio_ativo', true);
+    }
+
+    profilesQuery = profilesQuery.order('id');
     
-    console.log("Querying PAYING users with relatorio_ativo = true");
+    console.log(`Querying users - ${testPhone ? 'TEST MODE (no relatorio_ativo filter)' : 'relatorio_ativo = true'}`);
 
     // Filter by testPhone if provided (ignores batch when testing)
     if (testPhone) {
