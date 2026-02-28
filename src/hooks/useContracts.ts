@@ -125,18 +125,35 @@ export function useContracts() {
     enabled: !!user && !employeeLoading && !!effectiveUserId,
   });
 
-  // Query para buscar todos os pagamentos de contratos do usuário
+  // Query para buscar todos os pagamentos de contratos do usuário (com paginação para superar limite de 1000)
   const { data: allContractPayments = [] } = useQuery({
     queryKey: ['all_contract_payments', effectiveUserId],
     queryFn: async () => {
       if (!effectiveUserId) return [];
       
-      const { data, error } = await supabase
-        .from('contract_payments')
-        .select('*');
+      const allPayments: ContractPayment[] = [];
+      const pageSize = 1000;
+      let from = 0;
+      let hasMore = true;
 
-      if (error) throw error;
-      return data as ContractPayment[];
+      while (hasMore) {
+        const { data, error } = await supabase
+          .from('contract_payments')
+          .select('*')
+          .range(from, from + pageSize - 1);
+
+        if (error) throw error;
+        
+        if (data && data.length > 0) {
+          allPayments.push(...(data as ContractPayment[]));
+          from += pageSize;
+          hasMore = data.length === pageSize;
+        } else {
+          hasMore = false;
+        }
+      }
+
+      return allPayments;
     },
     enabled: !!user && !employeeLoading && !!effectiveUserId,
   });
