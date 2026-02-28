@@ -254,7 +254,7 @@ const sendWhatsAppViaUmClique = async (phone: string, userName: string, message:
       }
       
       // Step 2: Wait for template to be delivered and window to open
-      await new Promise(resolve => setTimeout(resolve, 4000));
+      await new Promise(resolve => setTimeout(resolve, 2000));
       
       // Step 3: Send the actual report text
       const textSent = await sendTextChunks();
