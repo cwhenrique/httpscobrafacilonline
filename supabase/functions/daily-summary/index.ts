@@ -917,13 +917,10 @@ const handler = async (req: Request): Promise<Response> => {
 
       console.log(`Sending ${isReminder ? 'reminder' : 'report'} to user ${profile.id} (relatorio_ativo: ${profile.relatorio_ativo})`);
       
-      // Route: relatorio_ativo users go via Um Clique Digital API, others via UAZAPI
-      // Scheduled sends are always direct; manual test can force direct via body.directSend
+      // Route: ALL daily reports go via Um Clique Digital API (official WhatsApp partner)
       const isScheduledSend = !testPhone;
       const shouldDirectSend = isScheduledSend || directSend;
-      const sent = profile.relatorio_ativo
-        ? await sendWhatsAppViaUmClique(profile.phone, profile.full_name || 'Cliente', messageText, profile.id, supabase, force, shouldDirectSend)
-        : await sendWhatsAppToSelf(profile, messageText);
+      const sent = await sendWhatsAppViaUmClique(profile.phone, profile.full_name || 'Cliente', messageText, profile.id, supabase, force, shouldDirectSend);
       if (sent) {
         sentCount++;
       }
